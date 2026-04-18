@@ -14,7 +14,7 @@ const LINKS = [
 
 export function SiteHeader({ current = "home" }: SiteHeaderProps) {
   return (
-    <header className="flex items-center justify-between gap-4 py-4">
+    <header className="flex items-center justify-between gap-4 py-5 lg:py-6">
       <Link href="/" className="shrink-0 font-display text-2xl font-semibold text-ink transition hover:text-pine sm:text-3xl">
         RoleReady
       </Link>

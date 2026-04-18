@@ -12,8 +12,13 @@ type TurnRequest = {
     seniority?: string;
     interviewType?: string;
     resumeProjectSummary?: string;
+    resumeHighlights?: string[];
+    resumeSkills?: string[];
+    jobSummary?: string;
     companySummary?: string;
     requiredSkills?: string[];
+    preferredSkills?: string[];
+    responsibilities?: string[];
     keywords?: string[];
     previousQuestions?: string[];
     previousAnswers?: string[];
@@ -48,8 +53,13 @@ export async function POST(request: Request) {
     seniority: state.seniority || "mid-level",
     interviewType: state.interviewType || "mixed behavioral and role-fit",
     resumeProjectSummary: state.resumeProjectSummary,
+    resumeHighlights: Array.isArray(state.resumeHighlights) ? state.resumeHighlights : [],
+    resumeSkills: Array.isArray(state.resumeSkills) ? state.resumeSkills : [],
+    jobSummary: state.jobSummary || "",
     companySummary: state.companySummary || "",
     requiredSkills: Array.isArray(state.requiredSkills) ? state.requiredSkills : [],
+    preferredSkills: Array.isArray(state.preferredSkills) ? state.preferredSkills : [],
+    responsibilities: Array.isArray(state.responsibilities) ? state.responsibilities : [],
     keywords: Array.isArray(state.keywords) ? state.keywords : [],
     previousQuestions: Array.isArray(state.previousQuestions) ? state.previousQuestions : [],
     previousAnswers: Array.isArray(state.previousAnswers) ? state.previousAnswers : [],

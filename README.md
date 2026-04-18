@@ -40,7 +40,7 @@ Core Ollama env vars:
 - `OLLAMA_BASE_URL` (default `http://127.0.0.1:11434`)
 - `OLLAMA_MODEL` (recommended `qwen3:4b`, optional `qwen3:8b`)
 - `OLLAMA_TIMEOUT_MS`
-- `NEXT_PUBLIC_INTERVIEW_TARGET_COUNT` (defaults to 5 rounds)
+- `NEXT_PUBLIC_INTERVIEW_TARGET_COUNT` (defaults to 3 rounds for local testing)
 
 ## Voice mode setup
 

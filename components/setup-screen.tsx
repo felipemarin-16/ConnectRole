@@ -5,11 +5,75 @@ import { useRouter } from "next/navigation";
 
 import { SiteHeader } from "@/components/site-header";
 import { buildInterviewContext } from "@/lib/interview-context";
-import { extractTextFromPdf } from "@/lib/pdf";
-import { parseResumeText } from "@/lib/resume-parser";
 import { parseJobPosting } from "@/lib/job-parser";
+import { extractTextFromPdf } from "@/lib/pdf";
 import { saveInterviewSession, saveSetupSession } from "@/lib/session";
+import type { JobData, ResumeData } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+const QUICK_START_NAME = "Felipe";
+const QUICK_START_RESUME_TEXT = `
+Felipe Marin
+
+Education
+University of Utah - B.S. in Computer Science, expected December 2026
+
+Projects
+FNDR - Privacy-First Local AI Assistant for macOS (2026-Present)
+Built a local-first AI assistant that helps users retrieve past context from screenshots and notes.
+Designed retrieval flows for memory search and fast follow-up prompts.
+
+RoleReady - Mock Interview Coach (2026)
+Built a Next.js + TypeScript prototype for voice-based mock interviews with transcript scoring.
+
+Skills
+TypeScript, JavaScript, React, Next.js, Node.js, Python, SQL, FastAPI, Git
+
+Experience
+Built and shipped multiple full-stack side projects focused on AI-assisted user workflows.
+`;
+
+const QUICK_START_JOB_POSTING = `
+Leidos
+Jr. Software Engineer Intern
+Tucson, AZ
+Internship
+Onsite
+
+Responsibilities
+Support full stack development across user interfaces, REST services, APIs, and AWS cloud infrastructure.
+Work with senior engineers on agile planning and software engineering standards.
+
+Required
+Working toward a Bachelors in Computer Science or similar discipline.
+Experience with software design patterns and web application development.
+Exposure to JavaScript, TypeScript, Python, Java, C++, and SQL.
+Familiarity with React, Django, Flask, FastAPI, SpringBoot, or NodeJS.
+Familiarity with Git standards.
+`;
+
+function primeBrowserVoicePlayback() {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    return;
+  }
+
+  try {
+    const utterance = new SpeechSynthesisUtterance(".");
+    utterance.volume = 0;
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    // Do not call cancel() synchronously before speak() if idle,
+    // as it can lock Chrome in a stuck "speaking=true" state.
+    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+      window.speechSynthesis.cancel();
+      window.setTimeout(() => window.speechSynthesis.speak(utterance), 80);
+    } else {
+      window.speechSynthesis.speak(utterance);
+    }
+  } catch {
+    // Best-effort only; the interview page still has its own recovery path.
+  }
+}
 
 export function SetupScreen() {
   const router = useRouter();
@@ -23,7 +87,7 @@ export function SetupScreen() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(0);
   const [showOverlay, setShowOverlay] = useState(false);
-  const targetQuestionCount = Number.parseInt(process.env.NEXT_PUBLIC_INTERVIEW_TARGET_COUNT || "5", 10);
+  const targetQuestionCount = Number.parseInt(process.env.NEXT_PUBLIC_INTERVIEW_TARGET_COUNT || "3", 10);
   const canContinueFromStepOne = candidateName.trim().length > 0;
   const canContinueFromStepTwo = Boolean(resumeFile);
   const canContinueFromStepThree = jobPosting.trim().length > 0;
@@ -74,6 +138,121 @@ export function SetupScreen() {
     setStep((current) => Math.max(0, current - 1));
   }
 
+  async function prepareAndLaunchInterview(input: {
+    rawResumeText: string;
+    resumeFileName: string;
+    jobPostingText: string;
+    candidateNameInput: string;
+    companyOverride?: string;
+    roleOverride?: string;
+    jobTypeOverride?: string;
+  }) {
+    const parseResponse = await fetch("/api/setup/parse", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        rawResumeText: input.rawResumeText,
+        jobPostingText: input.jobPostingText,
+      }),
+    });
+
+    if (!parseResponse.ok) {
+      const details = await parseResponse.text();
+      throw new Error(details || "Could not analyze the resume and job posting.");
+    }
+
+    const { resume, job: parsedJob } = (await parseResponse.json()) as {
+      resume: ResumeData;
+      job: JobData;
+    };
+    const job = {
+      ...parsedJob,
+      companyName: input.companyOverride?.trim() || parsedJob.companyName,
+      roleTitle: input.roleOverride?.trim() || parsedJob.roleTitle,
+      jobType: input.jobTypeOverride || parsedJob.jobType,
+    };
+    const context = buildInterviewContext(resume, job, input.candidateNameInput);
+    const openingResponse = await fetch("/api/interview/opening", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        state: {
+          candidateName: context.candidateName,
+          role: context.role,
+          companyName: context.companyName,
+          seniority: context.seniority,
+          interviewType: context.interviewType,
+          resumeProjectSummary: context.resumeProjectSummary,
+          resumeHighlights: context.resumeHighlights,
+          resumeSkills: context.resumeSkills,
+          jobSummary: context.jobSummary,
+          companySummary: "",
+          requiredSkills: job.requiredSkills,
+          preferredSkills: job.preferredSkills,
+          responsibilities: job.responsibilities,
+          keywords: job.keywords,
+          previousQuestions: [],
+          previousAnswers: [],
+          coveredSkills: [],
+        },
+      }),
+    });
+
+    if (!openingResponse.ok) {
+      const details = await openingResponse.text();
+      throw new Error(details || "Could not prepare the first interview question.");
+    }
+
+    const openingPayload = (await openingResponse.json()) as {
+      question: string;
+      whyThisQuestion?: string;
+      nextSkillToProbe?: string;
+    };
+    const openingSkill =
+      openingPayload.nextSkillToProbe?.trim() || job.requiredSkills[0] || job.keywords[0] || "role-fit";
+    const openingQuestion =
+      openingPayload.question?.trim() ||
+      `To start, walk me through the experience, project, or technical work in your background that best matches the ${job.roleTitle || "role"} role.`;
+    const openingFocus =
+      openingPayload.whyThisQuestion?.trim() ||
+      "Open with the most role-relevant work from your resume and connect it directly to the job requirements.";
+
+    console.groupCollapsed("RoleReady setup debug");
+    console.info("Parsed resume", resume);
+    console.info("Parsed job", job);
+    console.info("Interview context", context);
+    console.groupEnd();
+
+    saveSetupSession({
+      createdAt: new Date().toISOString(),
+      coachVoice: "female",
+      companySummary: "",
+      resumeFileName: input.resumeFileName,
+      resume,
+      job,
+      context,
+    });
+
+    saveInterviewSession({
+      startedAt: new Date().toISOString(),
+      currentQuestionIndex: 0,
+      targetQuestionCount: Number.isFinite(targetQuestionCount) && targetQuestionCount > 0 ? targetQuestionCount : 3,
+      currentQuestion: {
+        id: "q1",
+        category: "adaptive",
+        prompt: openingQuestion,
+        focus: openingFocus,
+        targetSkills: [openingSkill].filter(Boolean),
+      },
+      coveredSkills: openingSkill ? [openingSkill] : [],
+      turns: [],
+    });
+  }
+
   async function handleStartInterview() {
     if (!resumeFile) {
       setError("Upload a PDF resume to begin the interview.");
@@ -86,6 +265,7 @@ export function SetupScreen() {
     }
 
     setError("");
+    primeBrowserVoicePlayback();
     setLoading(true);
     setShowOverlay(true);
 
@@ -93,49 +273,14 @@ export function SetupScreen() {
 
     try {
       const rawResumeText = await extractTextFromPdf(resumeFile);
-      const resume = parseResumeText(rawResumeText);
-      const parsedJob = parseJobPosting(jobPosting);
-      const job = {
-        ...parsedJob,
-        companyName: confirmedCompany.trim() || parsedJob.companyName,
-        roleTitle: confirmedPosition.trim() || parsedJob.roleTitle,
-        jobType: confirmedJobType || parsedJob.jobType,
-      };
-      const context = buildInterviewContext(resume, job, candidateName);
-
-      const openingSkill = job.requiredSkills[0] || job.keywords[0] || "role-fit";
-      const openingQuestion = `Tell me about yourself and walk me through the experience or projects that make you a strong fit for the ${job.roleTitle || "role"} role.`;
-      const openingFocus = "Open with a concise narrative: who you are, what you've done, and why this role.";
-
-      console.groupCollapsed("RoleReady setup debug");
-      console.info("Parsed resume", resume);
-      console.info("Parsed job", job);
-      console.info("Interview context", context);
-      console.groupEnd();
-
-      saveSetupSession({
-        createdAt: new Date().toISOString(),
-        coachVoice: "female",
-        companySummary: "",
+      await prepareAndLaunchInterview({
+        rawResumeText,
         resumeFileName: resumeFile.name,
-        resume,
-        job,
-        context,
-      });
-
-      saveInterviewSession({
-        startedAt: new Date().toISOString(),
-        currentQuestionIndex: 0,
-        targetQuestionCount: Number.isFinite(targetQuestionCount) && targetQuestionCount > 0 ? targetQuestionCount : 5,
-        currentQuestion: {
-          id: "q1",
-          category: "adaptive",
-          prompt: openingQuestion,
-          focus: openingFocus,
-          targetSkills: [openingSkill].filter(Boolean),
-        },
-        coveredSkills: openingSkill ? [openingSkill] : [],
-        turns: [],
+        jobPostingText: jobPosting,
+        candidateNameInput: candidateName,
+        companyOverride: confirmedCompany,
+        roleOverride: confirmedPosition,
+        jobTypeOverride: confirmedJobType,
       });
 
       await minWait;
@@ -149,6 +294,38 @@ export function SetupScreen() {
         setupError instanceof Error
           ? setupError.message
           : "We ran into an issue while parsing the resume. Please try another PDF.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleQuickStart() {
+    setError("");
+    primeBrowserVoicePlayback();
+    setLoading(true);
+    setShowOverlay(true);
+
+    const minWait = new Promise<void>((resolve) => setTimeout(resolve, 1400));
+
+    try {
+      await prepareAndLaunchInterview({
+        rawResumeText: QUICK_START_RESUME_TEXT,
+        resumeFileName: "quick-start-resume.txt",
+        jobPostingText: QUICK_START_JOB_POSTING,
+        candidateNameInput: QUICK_START_NAME,
+      });
+
+      await minWait;
+      startTransition(() => {
+        router.push("/interview");
+      });
+    } catch (setupError) {
+      setShowOverlay(false);
+      setError(
+        setupError instanceof Error
+          ? setupError.message
+          : "Quick start failed. Try regular setup.",
       );
     } finally {
       setLoading(false);
@@ -185,6 +362,14 @@ export function SetupScreen() {
           <p className="mx-auto mt-4 max-w-sm text-base leading-7 text-slate">
             Upload your resume, paste a job posting, and get a tailored mock interview with coaching feedback.
           </p>
+          <button
+            type="button"
+            className="mt-6 rounded-full border border-ink/20 px-5 py-2 text-sm font-semibold text-ink transition hover:border-ink/35 hover:bg-white/80"
+            onClick={() => void handleQuickStart()}
+            disabled={loading}
+          >
+            {loading ? "Preparing..." : "Quick Start (Skip Setup)"}
+          </button>
         </div>
 
         {/* Setup flow — no card wrappers, just content */}

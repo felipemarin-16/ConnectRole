@@ -30,6 +30,123 @@ function hasOwnershipLanguage(text: string) {
   return /\b(i led|i built|i designed|i owned|i delivered|i created|i drove|i managed|i launched)\b/i.test(text);
 }
 
+function significantQuestionTerms(question: string) {
+  return question
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((word) => word.length > 4)
+    .filter((word) => !["about", "which", "would", "could", "their", "there", "where", "while"].includes(word));
+}
+
+function buildCoachNextTimeSuggestion(question: InterviewQuestion) {
+  const prompt = question.prompt.toLowerCase();
+
+  if (/\btell me about yourself\b|\bbackground\b/.test(prompt)) {
+    return "briefly introduce your background, name one or two relevant experiences, and explain clearly how they connect to the direction you are pursuing";
+  }
+
+  if (/\bwhy\b.*\b(role|company|opportunity)\b|\binterested in this role\b|\bmotivat/.test(prompt)) {
+    return "give one genuine reason, support it with a specific example from your experience, and end with why it matters to you now";
+  }
+
+  if (/\bproject\b|\bresume\b|\bwalk me through\b|\bi was looking at\b/.test(prompt)) {
+    return "walk through the problem, your ownership, the key decisions or tools, and the outcome in that order";
+  }
+
+  if (/\bchallenge\b|\bdifficult\b|\bobstacle\b|\brisk\b/.test(prompt)) {
+    return "name the challenge directly, explain what you did to handle it, and finish with what changed because of your action";
+  }
+
+  if (/\btradeoff\b|\bdecision\b|\bchose\b/.test(prompt)) {
+    return "explain the options you considered, why you made your choice, and what tradeoff came with that decision";
+  }
+
+  if (/\btime when\b|\bbehavioral\b|\bexample\b/.test(prompt)) {
+    return "use a short STAR structure so the listener can follow the situation, your action, and the result";
+  }
+
+  return "answer in a simple structure with context, your action, and a clear takeaway";
+}
+
+function buildCoachSummary(
+  answer: string,
+  question: InterviewQuestion,
+  strengths: string[],
+  issues: string[],
+  signals: {
+    broad: boolean;
+    short: boolean;
+    lowRelevance: boolean;
+    lowConfidence: boolean;
+  },
+) {
+  const suggestion = buildCoachNextTimeSuggestion(question);
+  const openingParts: string[] = [];
+
+  if (signals.broad || signals.short) {
+    openingParts.push("You gave a broad answer, so it was hard to understand the example or point you wanted to make.");
+  } else if (signals.lowRelevance) {
+    openingParts.push("Your answer had some useful detail, but it did not fully lock onto the exact question being asked.");
+  } else if (signals.lowConfidence) {
+    openingParts.push("You answered the question, but the delivery felt tentative and would be stronger with more direct language.");
+  } else if (strengths.length) {
+    openingParts.push(`You answered clearly, and ${strengths[0].charAt(0).toLowerCase()}${strengths[0].slice(1)}`);
+  } else {
+    openingParts.push("You answered the question, but the response needs a little more precision to be memorable.");
+  }
+
+  if (issues.length) {
+    openingParts.push(`The main gap was that ${issues[0].charAt(0).toLowerCase()}${issues[0].slice(1)}`);
+  }
+
+  openingParts.push(`Next time, ${suggestion}.`);
+
+  if (!signals.lowConfidence && /\b(um|uh|maybe|i guess|kind of|sort of)\b/i.test(answer)) {
+    openingParts.push("A more direct tone would also make the answer sound more confident.");
+  }
+
+  return openingParts.join(" ");
+}
+
+function formatSkillLabel(skill: string) {
+  return skill.replace(/[-_/]+/g, " ").trim();
+}
+
+export function buildQuestionTip(question: InterviewQuestion) {
+  const prompt = question.prompt.toLowerCase();
+  const primarySkill = formatSkillLabel(question.targetSkills[0] || "");
+
+  if (/\btell me about yourself\b|\bwalk me through your background\b/.test(prompt)) {
+    return "Keep it concise: present, past, and why this role is the natural next step.";
+  }
+
+  if (/\bwhy\b.*\b(role|company|team)\b|\binterested in this role\b|\bmotivat/.test(prompt)) {
+    return "Tie your interest to one real reason from the role and one detail from your background.";
+  }
+
+  if (/\bproject\b|\bresume\b|\bwalk me through\b|\bi was looking at\b/.test(prompt)) {
+    return "Frame it as problem, what you owned, the stack you used, and the result.";
+  }
+
+  if (/\btradeoff\b|\bdecision\b|\bchose\b/.test(prompt)) {
+    return "Explain the options you considered, why you chose one path, and what tradeoff you accepted.";
+  }
+
+  if (/\bchallenge\b|\bdifficult\b|\bobstacle\b|\brisk\b/.test(prompt)) {
+    return "Name the challenge clearly, then focus on the action you took and what changed after it.";
+  }
+
+  if (/\btime when\b|\bexample\b|\bbehavioral\b/.test(prompt)) {
+    return "Use a STAR structure and make your own contribution explicit.";
+  }
+
+  if (primarySkill) {
+    return `Use one concrete example that shows how you applied ${primarySkill} and what outcome it led to.`;
+  }
+
+  return "Answer with clear ownership, decisions, and a concrete outcome.";
+}
+
 export function generateFollowUp(answer: string, question: InterviewQuestion) {
   const trimmed = answer.trim();
   if (!trimmed) {
@@ -119,49 +236,126 @@ export function buildImprovedAnswer(answer: string, question: InterviewQuestion,
 export function buildAnswerFeedback(answer: string, question: InterviewQuestion, job: JobData): AnswerFeedback {
   const strengths: string[] = [];
   const issues: string[] = [];
+  const wordCount = answer.trim().split(/\s+/).filter(Boolean).length;
+  const fillerCount = countMatches(answer, FILLER_WORDS);
+  const hedgingCount = countMatches(answer, HEDGING_PHRASES);
+  const sentenceCount = splitSentences(answer).length;
+  const questionOverlap = keywordOverlapScore(answer, significantQuestionTerms(question.prompt));
+  const broad = !hasMetrics(answer) && !/\b(for example|for instance|specifically|because|when|after|before|using|built|created|designed|led|implemented)\b/i.test(answer);
+  const short = wordCount < 18;
+  const lowRelevance = questionOverlap < 12;
+  const lowConfidence = fillerCount >= 2 || hedgingCount >= 1;
 
-  if (hasMetrics(answer)) {
-    strengths.push("Included outcomes or measurable impact.");
+  if (!short && !lowRelevance) {
+    strengths.push("the response stayed on the question");
+  }
+
+  if (sentenceCount >= 2) {
+    strengths.push("the answer had enough structure to follow");
   } else {
-    issues.push("Missing a metric or tangible result.");
+    issues.push("the answer moved too quickly and needed clearer structure");
   }
 
-  if (hasOwnershipLanguage(answer)) {
-    strengths.push("Explained personal ownership clearly.");
+  if (!broad) {
+    strengths.push("you included at least one concrete detail");
   } else {
-    issues.push("Personal contribution could be clearer.");
+    issues.push("it stayed too general and needed a more specific example or detail");
   }
 
-  if (answer.trim().split(/\s+/).length >= 45) {
-    strengths.push("Provided enough context to understand the example.");
+  if (hasOwnershipLanguage(answer) || /\b(i|my)\b/i.test(answer)) {
+    strengths.push("your role in the answer was reasonably clear");
   } else {
-    issues.push("Answer is short and could use more detail.");
+    issues.push("your personal role or contribution was hard to identify");
   }
 
-  if (question.category === "motivation" && !answer.toLowerCase().includes(job.companyName.toLowerCase())) {
-    issues.push("Did not directly connect motivation to the company.");
+  if (wordCount >= 30) {
+    strengths.push("you gave enough context to begin understanding your point");
+  } else {
+    issues.push("the answer was short and needed a little more development");
   }
+
+  if (lowRelevance) {
+    issues.push("the answer did not fully address the exact question that was asked");
+  }
+
+  if (lowConfidence) {
+    issues.push("the delivery felt tentative and would be stronger with more direct language");
+  }
+
+  if (!hasMetrics(answer) && /\b(project|challenge|result|impact|outcome|built|launched|improved)\b/i.test(question.prompt)) {
+    issues.push("the answer stopped before showing what result came from the example");
+  }
+
+  const normalizedStrengths = unique(strengths).slice(0, 3);
+  const normalizedIssues = unique(issues).slice(0, 3);
 
   return {
-    strengths: strengths.length ? strengths : ["Stayed on topic and answered directly."],
-    issues: issues.length ? issues : ["Could still be sharper with a stronger closing takeaway."],
+    strengths: normalizedStrengths.length ? normalizedStrengths : ["the response answered the question directly"],
+    issues: normalizedIssues.length ? normalizedIssues : ["it could still be sharper with a clearer takeaway"],
     improvedAnswer: buildImprovedAnswer(answer, question, job),
+    coachSummary: buildCoachSummary(
+      answer,
+      question,
+      normalizedStrengths,
+      normalizedIssues,
+      {
+        broad,
+        short,
+        lowRelevance,
+        lowConfidence,
+      },
+    ),
   };
 }
 
 export function buildResumeGaps(resume: ResumeData, job: JobData) {
   const resumeCorpus = `${resume.skills.join(" ")} ${resume.experience.join(" ")} ${resume.projects.join(" ")}`.toLowerCase();
   const missingRequired = job.requiredSkills.filter((skill) => !resumeCorpus.includes(skill.toLowerCase()));
+  const missingKeywords = job.keywords.filter((keyword) => !resumeCorpus.includes(keyword.toLowerCase()));
 
-  if (!missingRequired.length) {
+  if (!missingRequired.length && !missingKeywords.length) {
     return [
-      "Your resume broadly aligns with the role, but you could make results and ownership more explicit.",
+      "Your resume broadly aligns with the role, but you could make results, ownership, and impact keywords more explicit.",
     ];
   }
 
-  return missingRequired.slice(0, 5).map(
-    (skill) => `The job emphasizes ${skill}, but that signal is not obvious in the resume as written.`,
+  const requiredGaps = missingRequired.slice(0, 4).map(
+    (skill) => `The posting emphasizes ${skill}, but that signal is not obvious in the resume as written.`,
   );
+  const keywordGaps = missingKeywords
+    .filter((keyword) => !missingRequired.some((skill) => skill.toLowerCase() === keyword.toLowerCase()))
+    .slice(0, 2)
+    .map((keyword) => `The keyword "${keyword}" appears in the job description but not clearly in the resume.`);
+
+  return [...requiredGaps, ...keywordGaps];
+}
+
+function buildResumeRecommendations(resume: ResumeData, job: JobData) {
+  const resumeCorpus = `${resume.skills.join(" ")} ${resume.experience.join(" ")} ${resume.projects.join(" ")}`.toLowerCase();
+  const missingRequired = job.requiredSkills.filter((skill) => !resumeCorpus.includes(skill.toLowerCase()));
+  const missingKeywords = job.keywords.filter((keyword) => !resumeCorpus.includes(keyword.toLowerCase()));
+
+  const targetedRecommendations = [
+    ...missingRequired.slice(0, 3).map(
+      (skill) => `If you have used ${skill}, add it to your resume with a project or bullet that shows how you applied it.`,
+    ),
+    ...missingKeywords
+      .filter((keyword) => !missingRequired.some((skill) => skill.toLowerCase() === keyword.toLowerCase()))
+      .slice(0, 2)
+      .map(
+        (keyword) => `Consider adding the keyword "${keyword}" in a natural way if your experience genuinely supports it.`,
+      ),
+  ];
+
+  if (targetedRecommendations.length) {
+    return targetedRecommendations;
+  }
+
+  return [
+    "Add stronger outcome language so each project or experience bullet makes the impact easier to see.",
+    "Surface ownership earlier in each bullet so your direct contribution is unmistakable.",
+    "Mirror the job posting’s terminology where it truthfully matches your background.",
+  ];
 }
 
 export function compileFinalReport(
@@ -178,6 +372,7 @@ export function compileFinalReport(
     turns.flatMap((turn) => turn.feedback.issues).slice(0, 8),
   ).slice(0, 4);
   const recommendations = unique([
+    ...buildResumeRecommendations(resume, job),
     "Use a clear structure: context, action, result, then tie it back to the role.",
     "Add at least one metric or proof point in every answer.",
     "Reduce filler language and end with a stronger close.",

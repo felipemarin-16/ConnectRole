@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { CoachVoice } from "@/lib/types";
 
@@ -98,19 +98,14 @@ export function useSpeechSynthesis(
   const [speaking, setSpeaking] = useState(false);
   const [ready, setReady] = useState(false);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [selectedVoiceName, setSelectedVoiceName] = useState("");
-  const [provider, setProvider] = useState<"elevenlabs" | "browser">(mode === "elevenlabs" ? "elevenlabs" : "browser");
   const [lastError, setLastError] = useState("");
   const [activeAudioElement, setActiveAudioElement] = useState<HTMLAudioElement | null>(null);
   const [browserSpeechLevel, setBrowserSpeechLevel] = useState(0);
   const browserAnimationFrameRef = useRef<number | null>(null);
+  const browserStartWatchdogRef = useRef<number | null>(null);
+  const browserDeferredSpeakRef = useRef<number | null>(null);
   const browserTargetLevelRef = useRef(0);
   const browserTimeSeedRef = useRef(0);
-  const elevenLabsVoiceName = useMemo(
-    () => (desiredVoice === "male" ? "ElevenLabs · Adam" : "ElevenLabs · Rachel"),
-    [desiredVoice],
-  );
-
   function stopBrowserActivityLoop() {
     if (browserAnimationFrameRef.current !== null && typeof window !== "undefined") {
       window.cancelAnimationFrame(browserAnimationFrameRef.current);
@@ -118,6 +113,20 @@ export function useSpeechSynthesis(
     }
     browserTargetLevelRef.current = 0;
     setBrowserSpeechLevel(0);
+  }
+
+  function clearBrowserStartWatchdog() {
+    if (browserStartWatchdogRef.current !== null && typeof window !== "undefined") {
+      window.clearTimeout(browserStartWatchdogRef.current);
+      browserStartWatchdogRef.current = null;
+    }
+  }
+
+  function clearDeferredBrowserSpeak() {
+    if (browserDeferredSpeakRef.current !== null && typeof window !== "undefined") {
+      window.clearTimeout(browserDeferredSpeakRef.current);
+      browserDeferredSpeakRef.current = null;
+    }
   }
 
   function startBrowserActivityLoop() {
@@ -165,7 +174,9 @@ export function useSpeechSynthesis(
     return () => {
       if ("speechSynthesis" in window) {
         window.speechSynthesis.onvoiceschanged = null;
-        window.speechSynthesis.cancel();
+        if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+          window.speechSynthesis.cancel();
+        }
       }
       if (audioRef.current) {
         audioRef.current.pause();
@@ -179,16 +190,6 @@ export function useSpeechSynthesis(
       }
     };
   }, [mode]);
-
-  useEffect(() => {
-    if (provider === "elevenlabs") {
-      setSelectedVoiceName(elevenLabsVoiceName);
-      return;
-    }
-
-    const selectedVoice = pickVoice(voices, desiredVoice);
-    setSelectedVoiceName(selectedVoice?.name ?? "");
-  }, [desiredVoice, elevenLabsVoiceName, provider, voices]);
 
   async function playElevenLabs(text: string) {
     setLastError("");
@@ -236,8 +237,6 @@ export function useSpeechSynthesis(
     audioRef.current = audio;
     setActiveAudioElement(audio);
     setBrowserSpeechLevel(0);
-    setProvider("elevenlabs");
-    setSelectedVoiceName(elevenLabsVoiceName);
 
     audio.onplay = () => setSpeaking(true);
     audio.onended = () => {
@@ -265,9 +264,11 @@ export function useSpeechSynthesis(
     return true;
   }
 
-  function playBrowserFallback(text: string) {
+  function playBrowserFallback(
+    text: string,
+    callbacks?: { onStart?: () => void; onComplete?: () => void; onError?: () => void },
+  ) {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      setProvider("browser");
       setLastError("Browser speech synthesis is unavailable in this browser.");
       setSpeaking(false);
       setActiveAudioElement(null);
@@ -275,42 +276,159 @@ export function useSpeechSynthesis(
       return false;
     }
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    const synth = window.speechSynthesis;
     const availableVoices = voices.length ? voices : window.speechSynthesis.getVoices();
     const matchedVoice = pickVoice(availableVoices, desiredVoice);
+    const fallbackVoice =
+      matchedVoice && !matchedVoice.default ? matchedVoice : null;
 
-    if (matchedVoice) {
-      utterance.voice = matchedVoice;
+    setActiveAudioElement(null);
+    setBrowserSpeechLevel(0.18);
+    setSpeaking(false);
+    setLastError("");
+    clearBrowserStartWatchdog();
+
+    const attempts: Array<{ label: string; voice: SpeechSynthesisVoice | null }> = [
+      { label: "default", voice: null },
+    ];
+
+    if (fallbackVoice) {
+      attempts.push({ label: fallbackVoice.name, voice: fallbackVoice });
     }
 
-    setProvider("browser");
-    setActiveAudioElement(null);
-    setSelectedVoiceName(matchedVoice?.name ?? "System voice");
-    setBrowserSpeechLevel(0.18);
-    utterance.rate = desiredVoice === "male" ? 0.94 : 0.98;
-    utterance.pitch = 1;
-    utterance.onstart = () => {
-      setSpeaking(true);
-      browserTargetLevelRef.current = 0.34;
-      startBrowserActivityLoop();
-    };
-    utterance.onboundary = () => {
-      browserTargetLevelRef.current = Math.min(1, browserTargetLevelRef.current + 0.26);
-    };
-    utterance.onend = () => {
+    const failBrowserSpeech = () => {
       setSpeaking(false);
       stopBrowserActivityLoop();
-    };
-    utterance.onerror = () => {
-      setSpeaking(false);
-      stopBrowserActivityLoop();
+      setLastError("Browser voice could not start. Try replaying the question.");
     };
 
-    window.speechSynthesis.speak(utterance);
+    const speakAttempt = (attemptIndex: number) => {
+      const attempt = attempts[attemptIndex];
+
+      if (!attempt) {
+        failBrowserSpeech();
+        return;
+      }
+
+      let started = false;
+      let settled = false;
+      const nextUtterance = new SpeechSynthesisUtterance(text);
+      nextUtterance.lang = "en-US";
+
+      if (attempt.voice) {
+        nextUtterance.voice = attempt.voice;
+      }
+
+      nextUtterance.rate = desiredVoice === "male" ? 0.94 : 0.98;
+      nextUtterance.pitch = 1;
+      nextUtterance.onstart = () => {
+        started = true;
+        settled = true;
+        clearBrowserStartWatchdog();
+        setLastError("");
+        setSpeaking(true);
+        browserTargetLevelRef.current = 0.34;
+        startBrowserActivityLoop();
+        callbacks?.onStart?.();
+      };
+      nextUtterance.onboundary = () => {
+        browserTargetLevelRef.current = Math.min(1, browserTargetLevelRef.current + 0.26);
+      };
+      nextUtterance.onend = () => {
+        settled = true;
+        clearBrowserStartWatchdog();
+        setSpeaking(false);
+        stopBrowserActivityLoop();
+        callbacks?.onComplete?.();
+      };
+      nextUtterance.onerror = (event) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        clearBrowserStartWatchdog();
+
+        if (attemptIndex + 1 < attempts.length) {
+          synth.cancel();
+          window.setTimeout(() => {
+            speakAttempt(attemptIndex + 1);
+          }, 80);
+          return;
+        }
+
+        failBrowserSpeech();
+        callbacks?.onError?.();
+      };
+
+      browserStartWatchdogRef.current = window.setTimeout(() => {
+        if (started || settled) {
+          return;
+        }
+
+        settled = true;
+
+        if (attemptIndex + 1 < attempts.length) {
+          synth.cancel();
+          window.setTimeout(() => {
+            speakAttempt(attemptIndex + 1);
+          }, 80);
+          return;
+        }
+
+        failBrowserSpeech();
+        callbacks?.onError?.();
+      }, 900);
+
+      // Only cancel if there is something playing or pending.
+      // Calling cancel() when idle can unnecessarily trigger Chrome's stuck state
+      // or drop the audio context user gesture priming.
+      const needsCancel = synth.speaking || synth.pending;
+
+      const doSpeak = () => {
+        browserDeferredSpeakRef.current = null;
+        if (settled) {
+          return;
+        }
+        synth.resume();
+        synth.speak(nextUtterance);
+        window.setTimeout(() => {
+          if (synth.paused) {
+            synth.resume();
+          }
+        }, 120);
+      };
+
+      if (needsCancel) {
+        synth.cancel();
+        synth.resume();
+        browserDeferredSpeakRef.current = window.setTimeout(doSpeak, 80);
+      } else {
+        doSpeak();
+      }
+    };
+
+    try {
+      speakAttempt(0);
+    } catch (error) {
+      setSpeaking(false);
+      stopBrowserActivityLoop();
+      setLastError(error instanceof Error ? error.message : "Browser voice could not start.");
+      return false;
+    }
+
     return true;
   }
 
-  function speak(text: string, options?: { allowBrowserFallback?: boolean }) {
+  function speak(
+    text: string,
+    options?: {
+      allowBrowserFallback?: boolean;
+      onStart?: () => void;
+      onComplete?: () => void;
+      onError?: () => void;
+    },
+  ) {
     if (!supported || !text.trim()) {
       return;
     }
@@ -321,35 +439,38 @@ export function useSpeechSynthesis(
       try {
         if (mode === "browser") {
           setLastError("");
-          playBrowserFallback(text);
+          // Call playBrowserFallback directly — no extra deferred delay.
+          // The cancel/resume/speak sequence must happen in close succession
+          // or Chrome's synth enters a stuck "speaking=true but onstart never fires" state.
+          playBrowserFallback(text, options);
           return;
         }
 
         const played = await playElevenLabs(text);
 
         if (!played && allowBrowserFallback && mode !== "elevenlabs") {
-          playBrowserFallback(text);
+          playBrowserFallback(text, options);
         }
       } catch (error) {
         const blockedByAutoplay =
           error instanceof DOMException && error.name === "NotAllowedError";
 
         if (blockedByAutoplay) {
-          setProvider("elevenlabs");
-          setSelectedVoiceName(elevenLabsVoiceName);
           setLastError("ElevenLabs is ready. Click Replay to start coach audio after browser autoplay restrictions.");
           setSpeaking(false);
+          options?.onError?.();
           return;
         }
 
         if (allowBrowserFallback && mode !== "elevenlabs") {
-          playBrowserFallback(text);
+          playBrowserFallback(text, options);
           return;
         }
 
         setLastError(
           error instanceof Error ? error.message : "Coach audio could not be played.",
         );
+        options?.onError?.();
       }
     })();
   }
@@ -367,9 +488,17 @@ export function useSpeechSynthesis(
     }
 
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
+      if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+        window.speechSynthesis.cancel();
+        // Resume is required on Chrome — after cancel(), the synth can get stuck
+        // in a "speaking=true" state where subsequent speak() calls enqueue but
+        // onstart never fires.
+        window.speechSynthesis.resume();
+      }
     }
 
+    clearDeferredBrowserSpeak();
+    clearBrowserStartWatchdog();
     setSpeaking(false);
     setActiveAudioElement(null);
     stopBrowserActivityLoop();
@@ -379,8 +508,6 @@ export function useSpeechSynthesis(
     supported,
     ready,
     speaking,
-    selectedVoiceName,
-    provider,
     activeAudioElement,
     browserSpeechLevel,
     lastError,

@@ -1,19 +1,78 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { SiteHeader } from "@/components/site-header";
 import { Shell } from "@/components/shell";
 import { compileFinalReport } from "@/lib/interview-engine";
 import { downloadCoverLetterPdf } from "@/lib/pdf-export";
 import { clearRoleReadySession, getFinalReport, getInterviewSession, getSetupSession, saveFinalReport } from "@/lib/session";
-import type { FinalReport, InterviewSession, SetupSession } from "@/lib/types";
+import type { FinalReport, InterviewSession, InterviewTurn, SetupSession } from "@/lib/types";
+
+type ResultsPhase = "walkthrough" | "summary";
+
+function TurnFeedbackCard({
+  turn,
+  index,
+  total,
+  revealStep,
+}: {
+  turn: InterviewTurn;
+  index: number;
+  total: number;
+  revealStep?: number;
+}) {
+  const questionVisible = revealStep === undefined || revealStep >= 1;
+  const answerVisible = revealStep === undefined || revealStep >= 2;
+  const feedbackVisible = revealStep === undefined || revealStep >= 3;
+
+  return (
+    <div className="rounded-[30px] border border-ink/10 bg-white p-6 shadow-[0_18px_50px_rgba(19,28,46,0.08)]">
+      <div
+        className={`transition-all duration-500 ${
+          questionVisible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+        }`}
+      >
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">
+            Question {index + 1} of {total}
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold leading-9 text-ink">{turn.question}</h2>
+        </div>
+      </div>
+
+      <div
+        className={`mt-6 rounded-[24px] bg-[#FBF7F1] p-5 transition-all duration-500 ${
+          answerVisible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+        }`}
+      >
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">Your answer</p>
+        <p className="mt-3 text-base leading-8 text-ink">{turn.answer}</p>
+      </div>
+
+      <div
+        className={`mt-5 rounded-[24px] border border-ink/10 bg-[#F7FAFD] p-5 transition-all duration-500 ${
+          feedbackVisible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+        }`}
+      >
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">Feedback</p>
+        <p className="mt-3 text-sm leading-7 text-ink">{turn.feedback.coachSummary}</p>
+      </div>
+    </div>
+  );
+}
 
 export function ResultsScreen() {
   const router = useRouter();
   const [setup, setSetup] = useState<SetupSession | null>(null);
   const [interview, setInterview] = useState<InterviewSession | null>(null);
   const [report, setReport] = useState<FinalReport | null>(null);
+  const [phase, setPhase] = useState<ResultsPhase>("walkthrough");
+  const [activeTurnIndex, setActiveTurnIndex] = useState(0);
+  const [showReviewAnswers, setShowReviewAnswers] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(false);
+  const [revealStep, setRevealStep] = useState(0);
 
   useEffect(() => {
     const sessionSetup = getSetupSession();
@@ -42,12 +101,39 @@ export function ResultsScreen() {
     setReport(nextReport);
   }, []);
 
+  const activeTurn = useMemo(() => {
+    if (!interview?.turns.length) {
+      return null;
+    }
+
+    return interview.turns[Math.min(activeTurnIndex, interview.turns.length - 1)];
+  }, [activeTurnIndex, interview?.turns]);
+
+  useEffect(() => {
+    if (phase !== "walkthrough" || !activeTurn) {
+      return;
+    }
+
+    setRevealStep(0);
+
+    const timers = [
+      window.setTimeout(() => setRevealStep(1), 120),
+      window.setTimeout(() => setRevealStep(2), 420),
+      window.setTimeout(() => setRevealStep(3), 760),
+      window.setTimeout(() => setRevealStep(4), 1080),
+    ];
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [activeTurn, activeTurnIndex, phase]);
+
   if (!setup || !interview || !report) {
     return (
       <Shell
         badge="Results"
         title="Your interview results will appear here."
-        subtitle="Complete a session first so RoleReady can generate the score, feedback, and cover letter."
+        subtitle="Complete a session first so RoleReady can generate feedback, transcript review, and the cover letter draft."
         current="results"
       >
         <div className="panel p-6">
@@ -59,34 +145,109 @@ export function ResultsScreen() {
     );
   }
 
+  const roleLabel = setup.job.companyName
+    ? `${setup.job.roleTitle} at ${setup.job.companyName}`
+    : setup.job.roleTitle;
+
+  if (phase === "walkthrough" && activeTurn) {
+    const isLastTurn = activeTurnIndex >= interview.turns.length - 1;
+
+    return (
+      <main className="relative mx-auto flex min-h-screen max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-10">
+        <SiteHeader current="results" />
+        <div className="mx-auto grid w-full max-w-4xl gap-6 pt-4">
+          <div className="flex gap-2">
+            {interview.turns.map((turn, index) => (
+              <span
+                key={`${turn.questionId}-progress-${index}`}
+                className={`h-2.5 flex-1 rounded-full transition-all duration-300 ${
+                  index === activeTurnIndex ? "bg-ink" : "bg-ink/15"
+                }`}
+              />
+            ))}
+          </div>
+
+          <TurnFeedbackCard
+            turn={activeTurn}
+            index={activeTurnIndex}
+            total={interview.turns.length}
+            revealStep={revealStep}
+          />
+
+          <div
+            className={`flex flex-col gap-3 transition-all duration-500 sm:flex-row sm:items-center sm:justify-between ${
+              revealStep >= 4 ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+            }`}
+          >
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() => setActiveTurnIndex((current) => Math.max(0, current - 1))}
+              disabled={activeTurnIndex === 0}
+            >
+              Previous answer
+            </button>
+
+            <button
+              type="button"
+              className="button-primary"
+              onClick={() => {
+                if (isLastTurn) {
+                  setPhase("summary");
+                  return;
+                }
+
+                setActiveTurnIndex((current) => Math.min(interview.turns.length - 1, current + 1));
+              }}
+            >
+              {isLastTurn ? "See full results" : "Next answer"}
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <Shell
       badge="Results"
-      title="A concise report you can use right away."
-      subtitle="RoleReady summarizes where the interview landed, what to sharpen, and how to present your story more convincingly for the role."
+      title="Your full interview summary"
+      subtitle="Now you can review everything together, including resume gaps, recommendations, and the transcript."
       current="results"
-      aside={
-        <>
-          <div className="panel p-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate">Overall score</p>
-            <div className="mt-4 flex items-end gap-3">
-              <span className="font-display text-6xl text-ink">{report.overallScore}</span>
-              <span className="pb-2 text-lg text-slate">/ 100</span>
+    >
+      <div className="mx-auto grid w-full max-w-5xl gap-6">
+        <section className="panel p-6 sm:p-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Interview snapshot</p>
+              <h2 className="mt-2 text-2xl font-semibold text-ink">{roleLabel}</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate">
+                {interview.turns.length} answers reviewed. This summary highlights what showed up well in the interview
+                and what should be clearer in the next version of your resume and delivery.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {report.strengths.slice(0, 4).map((item, index) => (
+                  <span key={`${item}-${index}`} className="rounded-full bg-[#EEF7F5] px-3 py-2 text-xs font-medium text-ink">
+                    {item}
+                  </span>
+                ))}
+              </div>
             </div>
-            <p className="mt-4 text-sm leading-6 text-slate">
-              Based on relevance, specificity, confidence signals, and alignment with the role.
-            </p>
-          </div>
 
-          <div className="panel p-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate">Actions</p>
-            <div className="mt-4 grid gap-3">
+            <div className="grid gap-3 sm:min-w-[240px]">
               <button
                 type="button"
                 className="button-primary w-full"
                 onClick={() => downloadCoverLetterPdf(setup.resume.name, report.coverLetterText)}
               >
                 Download cover letter PDF
+              </button>
+              <button
+                type="button"
+                className="button-secondary w-full"
+                onClick={() => setPhase("walkthrough")}
+              >
+                Revisit answer walkthrough
               </button>
               <button
                 type="button"
@@ -100,66 +261,15 @@ export function ResultsScreen() {
               </button>
             </div>
           </div>
-        </>
-      }
-    >
-      <div className="grid gap-6">
-        <div className="panel overflow-hidden">
-          <div className="border-b border-ink/10 bg-[#FBF7F1] px-6 py-4 sm:px-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate">Screen 3 of 3</p>
-            <p className="mt-2 text-sm text-slate">
-              Target role: <span className="font-semibold text-ink">{setup.job.roleTitle}</span> at{" "}
-              <span className="font-semibold text-ink">{setup.job.companyName}</span>
-            </p>
-          </div>
+        </section>
 
-          <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-2">
-            <section className="rounded-[26px] border border-ink/10 bg-white p-5">
-              <h2 className="text-lg font-semibold text-ink">What went well</h2>
-              <ul className="mt-4 space-y-3 text-sm leading-6 text-slate">
-                {report.strengths.map((item) => (
-                  <li key={item} className="rounded-2xl bg-[#EEF7F5] px-4 py-3 text-ink">
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            <section className="rounded-[26px] border border-ink/10 bg-white p-5">
-              <h2 className="text-lg font-semibold text-ink">What hurt the answer</h2>
-              <ul className="mt-4 space-y-3 text-sm leading-6 text-slate">
-                {report.weaknesses.map((item) => (
-                  <li key={item} className="rounded-2xl bg-[#FFF3F0] px-4 py-3 text-ink">
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </div>
-        </div>
-
-        <div className="panel p-6 sm:p-8">
-          <h2 className="text-2xl font-semibold text-ink">Better version of your answers</h2>
-          <div className="mt-6 space-y-4">
-            {report.improvedAnswers.map((item) => {
-              const turn = interview.turns.find((entry) => entry.questionId === item.questionId);
-              return (
-                <div key={item.questionId} className="rounded-[24px] border border-ink/10 bg-white p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">{turn?.category ?? "Question"}</p>
-                  <p className="mt-2 text-sm font-semibold leading-6 text-ink">{item.question || turn?.question}</p>
-                  <p className="mt-4 text-sm leading-7 text-slate">{item.improvedAnswer}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-2">
+        <section className="grid gap-6 lg:grid-cols-2">
           <div className="panel p-6 sm:p-8">
-            <h2 className="text-2xl font-semibold text-ink">Resume gaps for this job</h2>
-            <ul className="mt-6 space-y-3 text-sm leading-6 text-slate">
-              {report.resumeGaps.map((gap) => (
-                <li key={gap} className="rounded-[22px] bg-[#FBF7F1] px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Resume gaps</p>
+            <h2 className="mt-2 text-2xl font-semibold text-ink">What the job asks for that your resume does not show clearly yet.</h2>
+            <ul className="mt-6 space-y-3 text-sm leading-7 text-slate">
+              {report.resumeGaps.map((gap, index) => (
+                <li key={`${gap}-${index}`} className="rounded-[22px] bg-[#FBF7F1] px-4 py-4">
                   {gap}
                 </li>
               ))}
@@ -167,42 +277,71 @@ export function ResultsScreen() {
           </div>
 
           <div className="panel p-6 sm:p-8">
-            <h2 className="text-2xl font-semibold text-ink">Recommendations</h2>
-            <ul className="mt-6 space-y-3 text-sm leading-6 text-slate">
-              {report.recommendations.map((item) => (
-                <li key={item} className="rounded-[22px] bg-white px-4 py-3 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Resume recommendations</p>
+            <h2 className="mt-2 text-2xl font-semibold text-ink">What to add or emphasize before applying again.</h2>
+            <ul className="mt-6 space-y-3 text-sm leading-7 text-slate">
+              {report.recommendations.map((item, index) => (
+                <li key={`${item}-${index}`} className="rounded-[22px] bg-white px-4 py-4 shadow-sm">
                   {item}
                 </li>
               ))}
             </ul>
           </div>
-        </div>
+        </section>
 
-        <div className="panel p-6 sm:p-8">
-          <h2 className="text-2xl font-semibold text-ink">Interview transcript review</h2>
-          <p className="mt-2 text-sm leading-6 text-slate">
-            Review each question, your recorded answer transcript, and the coach follow-up.
-          </p>
-          <div className="mt-6 space-y-4">
-            {interview.turns.map((turn, index) => (
-              <article key={`${turn.questionId}-${index}`} className="rounded-[24px] border border-ink/10 bg-white p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">Coach question</p>
-                <p className="mt-2 text-sm leading-7 text-ink">{turn.question}</p>
-                <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate">Your answer transcript</p>
-                <p className="mt-2 text-sm leading-7 text-ink">{turn.answer}</p>
-                <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate">Coach follow-up</p>
-                <p className="mt-2 text-sm leading-7 text-pine">{turn.followUp}</p>
-              </article>
-            ))}
-          </div>
-        </div>
+        <section className="panel p-6 sm:p-8">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between rounded-[24px] border border-ink/10 bg-white px-5 py-4 text-left transition hover:border-ink/20"
+            onClick={() => setShowReviewAnswers((current) => !current)}
+          >
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">Answer feedback</p>
+              <p className="mt-1 text-lg font-semibold text-ink">Review answers</p>
+            </div>
+            <span className="text-sm font-medium text-slate">{showReviewAnswers ? "Hide" : "View"}</span>
+          </button>
 
-        <div className="panel p-6 sm:p-8">
-          <h2 className="text-2xl font-semibold text-ink">Cover letter preview</h2>
-          <div className="mt-6 rounded-[28px] border border-ink/10 bg-white p-6">
-            <pre className="whitespace-pre-wrap font-sans text-sm leading-7 text-slate">{report.coverLetterText}</pre>
-          </div>
-        </div>
+          {showReviewAnswers ? (
+            <div className="mt-6 space-y-4">
+              {interview.turns.map((turn, index) => (
+                <TurnFeedbackCard
+                  key={`${turn.questionId}-summary-${index}`}
+                  turn={turn}
+                  index={index}
+                  total={interview.turns.length}
+                />
+              ))}
+            </div>
+          ) : null}
+        </section>
+
+        <section className="panel p-6 sm:p-8">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between rounded-[24px] border border-ink/10 bg-white px-5 py-4 text-left transition hover:border-ink/20"
+            onClick={() => setShowTranscript((current) => !current)}
+          >
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">Transcript</p>
+              <p className="mt-1 text-lg font-semibold text-ink">View transcript</p>
+            </div>
+            <span className="text-sm font-medium text-slate">{showTranscript ? "Hide" : "View"}</span>
+          </button>
+
+          {showTranscript ? (
+            <div className="mt-6 space-y-4">
+              {interview.turns.map((turn, index) => (
+                <article key={`${turn.questionId}-transcript-${index}`} className="rounded-[24px] border border-ink/10 bg-white p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate">Question {index + 1}</p>
+                  <p className="mt-2 text-sm leading-7 text-ink">{turn.question}</p>
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate">Answer</p>
+                  <p className="mt-2 text-sm leading-7 text-ink">{turn.answer}</p>
+                </article>
+              ))}
+            </div>
+          ) : null}
+        </section>
       </div>
     </Shell>
   );

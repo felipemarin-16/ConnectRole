@@ -101,6 +101,15 @@ function getSectionEntries(sections: ResumeSection[], title: string) {
     .filter(Boolean);
 }
 
+function buildResumeHighlights(experience: string[], projects: string[], education: string[]) {
+  const highlights = [...projects.slice(0, 2), ...experience.slice(0, 3), ...education.slice(0, 1)]
+    .map((entry) => entry.replace(/\s+/g, " ").trim())
+    .filter((entry) => entry.length > 18)
+    .slice(0, 5);
+
+  return unique(highlights);
+}
+
 export function parseResumeText(rawText: string): ResumeData {
   const normalized = normalizeWhitespace(rawText);
   const lines = normalized
@@ -129,6 +138,11 @@ export function parseResumeText(rawText: string): ResumeData {
     projects: projects.length ? projects : fallbackEntries.slice(2, 5),
     skills: unique(skillsFromSection).slice(0, 18),
     experience: experience.length ? experience : fallbackEntries.slice(0, 6),
+    highlights: buildResumeHighlights(
+      experience.length ? experience : fallbackEntries.slice(0, 6),
+      projects.length ? projects : fallbackEntries.slice(2, 5),
+      education.length ? education : fallbackEntries.slice(0, 2),
+    ),
     sections,
   };
 }

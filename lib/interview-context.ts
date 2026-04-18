@@ -22,6 +22,8 @@ function cleanProjectEntry(entry: string) {
   // Strip trailing date patterns: "2026(Present)", "(2024-Present)", "2024 - Present", "(2023)"
   return entry
     .replace(/\s*\d{4}\s*\(Present\)\s*$/i, "")
+    .replace(/\s*\d{4}\s*\(\s*present\s*\)\s*$/i, "")
+    .replace(/\s*[\(\[]?\d{4}\s*[-–]?\s*(present|\d{4})[\)\]]?\s*$/i, "")
     .replace(/\s*[\(\[]\d{4}\s*[-–]\s*(Present|\d{4})[\)\]]\s*$/i, "")
     .replace(/\s*\d{4}\s*[-–]\s*(Present|\d{4})\s*$/i, "")
     .replace(/\s*[\(\[]\d{4}[\)\]]\s*$/i, "")
@@ -44,6 +46,16 @@ function buildResumeProjectSummary(resume: ResumeData) {
 }
 
 export function buildInterviewContext(resume: ResumeData, job: JobData, candidateName: string) {
+  const jobSummary = [
+    job.summary,
+    job.location ? `Location: ${job.location}.` : "",
+    job.workMode ? `Work mode: ${job.workMode}.` : "",
+    job.requiredSkills.length ? `Key skills: ${job.requiredSkills.slice(0, 8).join(", ")}.` : "",
+    job.responsibilities.length ? `Key responsibilities: ${job.responsibilities.slice(0, 3).join(" | ")}.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return {
     candidateName: candidateName.trim() || resume.name,
     role: job.roleTitle || "Target Role",
@@ -52,5 +64,8 @@ export function buildInterviewContext(resume: ResumeData, job: JobData, candidat
     seniority: inferSeniority(job.roleTitle, job.rawText),
     interviewType: "mixed behavioral and role-fit",
     resumeProjectSummary: buildResumeProjectSummary(resume),
+    resumeHighlights: resume.highlights.map(cleanProjectEntry).slice(0, 5),
+    resumeSkills: resume.skills.slice(0, 12),
+    jobSummary,
   };
 }

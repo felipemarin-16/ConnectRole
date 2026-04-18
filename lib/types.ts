@@ -12,6 +12,7 @@ export type ResumeData = {
   projects: string[];
   skills: string[];
   experience: string[];
+  highlights: string[];
   sections: ResumeSection[];
 };
 
@@ -20,10 +21,14 @@ export type JobData = {
   roleTitle: string;
   companyName: string;
   jobType: string;
+  workMode?: string;
+  location?: string;
+  salaryRange?: string;
   requiredSkills: string[];
   preferredSkills: string[];
   responsibilities: string[];
   keywords: string[];
+  summary?: string;
 };
 
 export type QuestionCategory =
@@ -54,6 +59,7 @@ export type AnswerFeedback = {
   strengths: string[];
   issues: string[];
   improvedAnswer: string;
+  coachSummary: string;
 };
 
 export type InterviewTurn = {
@@ -86,6 +92,9 @@ export type InterviewContext = {
   seniority: string;
   interviewType: string;
   resumeProjectSummary: string;
+  resumeHighlights: string[];
+  resumeSkills: string[];
+  jobSummary: string;
 };
 
 export type SetupSession = {

@@ -29,10 +29,56 @@ const STOP_WORDS = new Set([
   "experience",
 ]);
 
+const META_LINE_PATTERN =
+  /^(position|time|remote|seniority|money|note|required|preferred|onsite|hybrid|internship|full-time|part-time)$/i;
+const COMPANY_BANNED_TERMS = new Set(
+  [
+    "git",
+    "github",
+    "react",
+    "typescript",
+    "javascript",
+    "python",
+    "java",
+    "sql",
+    "svelte",
+    "vue",
+    "django",
+    "flask",
+    "fastapi",
+    "nodejs",
+    "springboot",
+    "standards",
+  ],
+);
+
+function isLikelyCompanyLine(line: string) {
+  const compact = line.trim();
+  if (!compact || compact.length > 50 || META_LINE_PATTERN.test(compact)) {
+    return false;
+  }
+
+  const lowerTokens = compact.toLowerCase().split(/[^a-z0-9&.+-]+/).filter(Boolean);
+  if (!lowerTokens.length || lowerTokens.some((token) => COMPANY_BANNED_TERMS.has(token))) {
+    return false;
+  }
+
+  return /^[A-Z][A-Za-z0-9&.\- ]+$/.test(compact);
+}
+
 function findRoleTitle(lines: string[]) {
   const explicit = lines.find((line) => /^(role|title|position)\s*:/i.test(line));
   if (explicit) {
     return explicit.split(":").slice(1).join(":").trim();
+  }
+
+  const earlyRole = lines.slice(0, 6).find(
+    (line) =>
+      line.length < 90 &&
+      /intern|engineer|designer|analyst|specialist|lead|director|coordinator|developer|consultant/i.test(line),
+  );
+  if (earlyRole) {
+    return earlyRole;
   }
 
   const candidate = lines.find(
@@ -44,7 +90,12 @@ function findRoleTitle(lines: string[]) {
   return candidate ?? "Target Role";
 }
 
-function findCompanyName(text: string) {
+function findCompanyName(lines: string[], text: string) {
+  const topLineCandidate = lines.slice(0, 5).find(isLikelyCompanyLine);
+  if (topLineCandidate) {
+    return topLineCandidate.trim();
+  }
+
   const explicit = text.match(/company\s*:\s*([A-Z][A-Za-z0-9&.\- ]{1,40})/i);
   if (explicit?.[1]) {
     return explicit[1].trim();
@@ -56,7 +107,12 @@ function findCompanyName(text: string) {
   }
 
   const atCompany = text.match(/(?:at|with)\s+([A-Z][A-Za-z0-9&.\- ]{1,40})/);
-  return atCompany?.[1]?.trim() ?? "the company";
+  const matchedCompany = atCompany?.[1]?.trim();
+  if (matchedCompany && isLikelyCompanyLine(matchedCompany)) {
+    return matchedCompany;
+  }
+
+  return "the company";
 }
 
 function findJobType(text: string) {
@@ -65,6 +121,23 @@ function findJobType(text: string) {
   if (/\bcontract(or)?\b/i.test(text)) return "Contract";
   if (/\bfreelance\b/i.test(text)) return "Freelance";
   return "Full-time";
+}
+
+function findWorkMode(text: string) {
+  if (/\bhybrid\b/i.test(text)) return "Hybrid";
+  if (/\bremote\b/i.test(text)) return "Remote";
+  if (/\bonsite\b/i.test(text)) return "Onsite";
+  return "";
+}
+
+function findLocation(lines: string[]) {
+  const locationLine = lines.find((line) => /^[A-Z][A-Za-z .'-]+,\s*[A-Z]{2}\b/.test(line));
+  return locationLine?.trim() ?? "";
+}
+
+function findSalaryRange(text: string) {
+  const salary = text.match(/\$\d[\d,]*K?\/?(?:yr|year|hr|hour)?\s*[-–]\s*\$\d[\d,]*K?\/?(?:yr|year|hr|hour)?/i);
+  return salary?.[0]?.trim() ?? "";
 }
 
 function findSkills(text: string) {
@@ -128,7 +201,7 @@ export function parseJobPosting(rawText: string): JobData {
   const responsibilities = getSectionMatches(normalized, /^(responsibilities|what you'll do|what you will do|what you’ll do)$/i);
   const requiredSection = getSectionMatches(
     normalized,
-    /^(requirements|required qualifications|must have|minimum qualifications)$/i,
+    /^(requirements|required qualifications|qualification|qualifications|must have|minimum qualifications|required)$/i,
   );
   const preferredSection = getSectionMatches(
     normalized,
@@ -142,11 +215,15 @@ export function parseJobPosting(rawText: string): JobData {
   return {
     rawText: normalized,
     roleTitle: toTitleCase(findRoleTitle(lines)),
-    companyName: findCompanyName(normalized),
+    companyName: findCompanyName(lines, normalized),
     jobType: findJobType(normalized),
+    workMode: findWorkMode(normalized),
+    location: findLocation(lines),
+    salaryRange: findSalaryRange(normalized),
     requiredSkills,
     preferredSkills,
     responsibilities: responsibilities.length ? responsibilities : fallbackResponsibilities,
     keywords: extractKeywords(normalized, requiredSkills),
+    summary: (responsibilities.length ? responsibilities : fallbackResponsibilities).slice(0, 3).join(" "),
   };
 }
