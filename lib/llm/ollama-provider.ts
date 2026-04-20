@@ -41,7 +41,7 @@ export class OllamaProvider implements LlmProvider {
           format: "json",
           think: false,
           options: {
-            temperature: 0.35,
+            temperature: 0.7,
             top_p: 0.9,
             num_predict: 400,
           },

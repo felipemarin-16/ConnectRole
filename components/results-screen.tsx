@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { Shell } from "@/components/shell";
 import { compileFinalReport } from "@/lib/interview-engine";
-import { downloadCoverLetterPdf } from "@/lib/pdf-export";
 import { clearRoleReadySession, getFinalReport, getInterviewSession, getSetupSession, saveFinalReport } from "@/lib/session";
 import type { FinalReport, InterviewSession, InterviewTurn, SetupSession } from "@/lib/types";
 
@@ -57,7 +56,7 @@ function TurnFeedbackCard({
         }`}
       >
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">Feedback</p>
-        <p className="mt-3 text-sm leading-7 text-ink">{turn.feedback.coachSummary}</p>
+        <p className="mt-3 whitespace-pre-line text-sm leading-7 text-ink">{turn.feedback.coachSummary}</p>
       </div>
     </div>
   );
@@ -71,7 +70,6 @@ export function ResultsScreen() {
   const [phase, setPhase] = useState<ResultsPhase>("walkthrough");
   const [activeTurnIndex, setActiveTurnIndex] = useState(0);
   const [showReviewAnswers, setShowReviewAnswers] = useState(false);
-  const [showTranscript, setShowTranscript] = useState(false);
   const [revealStep, setRevealStep] = useState(0);
 
   useEffect(() => {
@@ -212,7 +210,7 @@ export function ResultsScreen() {
     <Shell
       badge="Results"
       title="Your full interview summary"
-      subtitle="Now you can review everything together, including resume gaps, recommendations, and the transcript."
+      subtitle="Now you can review everything together, with answer feedback at the top and resume guidance below."
       current="results"
     >
       <div className="mx-auto grid w-full max-w-5xl gap-6">
@@ -238,20 +236,6 @@ export function ResultsScreen() {
               <button
                 type="button"
                 className="button-primary w-full"
-                onClick={() => downloadCoverLetterPdf(setup.resume.name, report.coverLetterText)}
-              >
-                Download cover letter PDF
-              </button>
-              <button
-                type="button"
-                className="button-secondary w-full"
-                onClick={() => setPhase("walkthrough")}
-              >
-                Revisit answer walkthrough
-              </button>
-              <button
-                type="button"
-                className="button-secondary w-full"
                 onClick={() => {
                   clearRoleReadySession();
                   router.push("/");
@@ -260,32 +244,6 @@ export function ResultsScreen() {
                 Start over
               </button>
             </div>
-          </div>
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-2">
-          <div className="panel p-6 sm:p-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Resume gaps</p>
-            <h2 className="mt-2 text-2xl font-semibold text-ink">What the job asks for that your resume does not show clearly yet.</h2>
-            <ul className="mt-6 space-y-3 text-sm leading-7 text-slate">
-              {report.resumeGaps.map((gap, index) => (
-                <li key={`${gap}-${index}`} className="rounded-[22px] bg-[#FBF7F1] px-4 py-4">
-                  {gap}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="panel p-6 sm:p-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Resume recommendations</p>
-            <h2 className="mt-2 text-2xl font-semibold text-ink">What to add or emphasize before applying again.</h2>
-            <ul className="mt-6 space-y-3 text-sm leading-7 text-slate">
-              {report.recommendations.map((item, index) => (
-                <li key={`${item}-${index}`} className="rounded-[22px] bg-white px-4 py-4 shadow-sm">
-                  {item}
-                </li>
-              ))}
-            </ul>
           </div>
         </section>
 
@@ -316,31 +274,30 @@ export function ResultsScreen() {
           ) : null}
         </section>
 
-        <section className="panel p-6 sm:p-8">
-          <button
-            type="button"
-            className="flex w-full items-center justify-between rounded-[24px] border border-ink/10 bg-white px-5 py-4 text-left transition hover:border-ink/20"
-            onClick={() => setShowTranscript((current) => !current)}
-          >
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">Transcript</p>
-              <p className="mt-1 text-lg font-semibold text-ink">View transcript</p>
-            </div>
-            <span className="text-sm font-medium text-slate">{showTranscript ? "Hide" : "View"}</span>
-          </button>
-
-          {showTranscript ? (
-            <div className="mt-6 space-y-4">
-              {interview.turns.map((turn, index) => (
-                <article key={`${turn.questionId}-transcript-${index}`} className="rounded-[24px] border border-ink/10 bg-white p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate">Question {index + 1}</p>
-                  <p className="mt-2 text-sm leading-7 text-ink">{turn.question}</p>
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-slate">Answer</p>
-                  <p className="mt-2 text-sm leading-7 text-ink">{turn.answer}</p>
-                </article>
+        <section className="grid gap-6 lg:grid-cols-2">
+          <div className="panel p-6 sm:p-8">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Resume gaps</p>
+            <h2 className="mt-2 text-2xl font-semibold text-ink">What the job asks for that your resume does not show clearly yet.</h2>
+            <ul className="mt-6 space-y-3 text-sm leading-7 text-slate">
+              {report.resumeGaps.map((gap, index) => (
+                <li key={`${gap}-${index}`} className="rounded-[22px] bg-[#FBF7F1] px-4 py-4">
+                  {gap}
+                </li>
               ))}
-            </div>
-          ) : null}
+            </ul>
+          </div>
+
+          <div className="panel p-6 sm:p-8">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate">Resume recommendations</p>
+            <h2 className="mt-2 text-2xl font-semibold text-ink">What to add or emphasize before applying again.</h2>
+            <ul className="mt-6 space-y-3 text-sm leading-7 text-slate">
+              {report.recommendations.map((item, index) => (
+                <li key={`${item}-${index}`} className="rounded-[22px] bg-white px-4 py-4 shadow-sm">
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       </div>
     </Shell>

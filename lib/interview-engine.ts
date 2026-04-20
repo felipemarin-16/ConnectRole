@@ -68,6 +68,19 @@ function buildCoachNextTimeSuggestion(question: InterviewQuestion) {
   return "answer in a simple structure with context, your action, and a clear takeaway";
 }
 
+function hasUnrealisticClaims(answer: string) {
+  const lower = answer.toLowerCase();
+  return (
+    /\b\d{3,}\b/.test(lower) ||
+    /\b(all|every|everything|entire|always)\b/.test(lower) ||
+    /\b(machine learning stack|full stack|whole stack)\b/.test(lower)
+  );
+}
+
+function motivationCenteredOnPersonalNeed(answer: string) {
+  return /\bneed a job|need work|need money|right now\b/i.test(answer);
+}
+
 function buildCoachSummary(
   answer: string,
   question: InterviewQuestion,
@@ -80,32 +93,44 @@ function buildCoachSummary(
     lowConfidence: boolean;
   },
 ) {
+  const prompt = question.prompt.toLowerCase();
   const suggestion = buildCoachNextTimeSuggestion(question);
-  const openingParts: string[] = [];
+  let praise = "You gave a direct answer, which helps the interviewer understand your main point quickly.";
+  let tip = `The next step is to ${suggestion}, so the interviewer can clearly see your example, ownership, and result.`;
 
-  if (signals.broad || signals.short) {
-    openingParts.push("You gave a broad answer, so it was hard to understand the example or point you wanted to make.");
+  if (/\bprivacy|secure|security|reliable|reliability\b/i.test(answer) && /(\bwhy\b|\binterested\b|\bwant to work\b)/.test(prompt)) {
+    praise = "You connected your answer to secure and reliable systems, which gives your motivation a clear theme.";
+  } else if (/\bproject|assistant|macos|model|on-device|device\b/i.test(answer) && /(\bproject\b|\bwalk me through\b|\bexperience\b)/.test(prompt)) {
+    praise = "You anchored the answer in a real project, which makes your experience feel more tangible.";
+  } else if (strengths.find((item) => item.includes("concrete detail"))) {
+    praise = "You included a concrete detail, which makes the answer easier to follow and more believable.";
+  } else if (strengths.find((item) => item.includes("stayed on the question"))) {
+    praise = "You stayed on the question, which keeps the response focused and easier to follow.";
+  } else if (strengths.find((item) => item.includes("structure"))) {
+    praise = "You gave the answer enough structure for the interviewer to follow your main point.";
+  }
+
+  if (hasUnrealisticClaims(answer)) {
+    tip = "The biggest improvement is to use one believable example with realistic scope. For example, pick one project, explain what part you owned, and describe one concrete result instead of stacking several large claims together.";
+  } else if (motivationCenteredOnPersonalNeed(answer) && /(\bwhy\b|\binterested\b|\bwant to work\b)/.test(prompt)) {
+    tip = "The answer would land better if it centered more on the work itself. For example, mention one part of the role or mission that genuinely interests you and connect it to something you have enjoyed building before.";
   } else if (signals.lowRelevance) {
-    openingParts.push("Your answer had some useful detail, but it did not fully lock onto the exact question being asked.");
+    tip = `The main improvement is to answer the exact question earlier. For example, start with your direct reason or example first, then ${suggestion}.`;
+  } else if (signals.broad && /(\bproject\b|\bwalk me through\b|\bexperience\b)/.test(prompt)) {
+    tip = "The answer needs a clearer shape so the project is easier to follow. For example, walk through it in this order: the problem, what you owned, the main decision or tool, and what came out of it.";
+  } else if (signals.short) {
+    tip = `The answer would be stronger if you stayed with the example a little longer. For example, add one sentence on what you did and one sentence on what changed because of your work.`;
   } else if (signals.lowConfidence) {
-    openingParts.push("You answered the question, but the delivery felt tentative and would be stronger with more direct language.");
-  } else if (strengths.length) {
-    openingParts.push(`You answered clearly, and ${strengths[0].charAt(0).toLowerCase()}${strengths[0].slice(1)}`);
-  } else {
-    openingParts.push("You answered the question, but the response needs a little more precision to be memorable.");
+    tip = "The answer would feel stronger with more direct wording and a firmer finish. For example, end on one clear takeaway about what you contributed instead of tapering off.";
+  } else if (issues.some((item) => item.includes("result"))) {
+    tip = "What is missing most is the outcome. For example, finish with one sentence on what improved, shipped, or changed because of your work so the answer feels complete.";
+  } else if (issues.some((item) => item.includes("role"))) {
+    tip = "Your own contribution should come through more clearly. For example, say 'I owned...' or 'I handled...' early in the answer so the interviewer knows what was actually yours.";
+  } else if (issues.length && !strengths.length) {
+    praise = "You gave the interviewer a starting point, which is better than leaving the answer unfocused.";
   }
 
-  if (issues.length) {
-    openingParts.push(`The main gap was that ${issues[0].charAt(0).toLowerCase()}${issues[0].slice(1)}`);
-  }
-
-  openingParts.push(`Next time, ${suggestion}.`);
-
-  if (!signals.lowConfidence && /\b(um|uh|maybe|i guess|kind of|sort of)\b/i.test(answer)) {
-    openingParts.push("A more direct tone would also make the answer sound more confident.");
-  }
-
-  return openingParts.join(" ");
+  return `Strength: ${praise}\nImprovement: ${tip}`.replace(/\s+/g, " ").trim();
 }
 
 function formatSkillLabel(skill: string) {
@@ -241,7 +266,7 @@ export function buildAnswerFeedback(answer: string, question: InterviewQuestion,
   const hedgingCount = countMatches(answer, HEDGING_PHRASES);
   const sentenceCount = splitSentences(answer).length;
   const questionOverlap = keywordOverlapScore(answer, significantQuestionTerms(question.prompt));
-  const broad = !hasMetrics(answer) && !/\b(for example|for instance|specifically|because|when|after|before|using|built|created|designed|led|implemented)\b/i.test(answer);
+  const broad = !hasMetrics(answer) && !/\b(for example|for instance|specifically|because|when|after|before|using|built|created|designed|led|implemented|worked on|responsible for)\b/i.test(answer);
   const short = wordCount < 18;
   const lowRelevance = questionOverlap < 12;
   const lowConfidence = fillerCount >= 2 || hedgingCount >= 1;

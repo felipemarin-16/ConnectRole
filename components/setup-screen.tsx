@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { SiteHeader } from "@/components/site-header";
 import { buildInterviewContext } from "@/lib/interview-context";
+import { buildQuestionTip } from "@/lib/interview-engine";
 import { parseJobPosting } from "@/lib/job-parser";
 import { extractTextFromPdf } from "@/lib/pdf";
 import { saveInterviewSession, saveSetupSession } from "@/lib/session";
@@ -217,9 +218,13 @@ export function SetupScreen() {
     const openingQuestion =
       openingPayload.question?.trim() ||
       `To start, walk me through the experience, project, or technical work in your background that best matches the ${job.roleTitle || "role"} role.`;
-    const openingFocus =
-      openingPayload.whyThisQuestion?.trim() ||
-      "Open with the most role-relevant work from your resume and connect it directly to the job requirements.";
+    const openingFocus = buildQuestionTip({
+      id: "q1",
+      category: "adaptive",
+      prompt: openingQuestion,
+      focus: "",
+      targetSkills: [openingSkill].filter(Boolean),
+    });
 
     console.groupCollapsed("RoleReady setup debug");
     console.info("Parsed resume", resume);

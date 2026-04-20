@@ -571,6 +571,7 @@ export function InterviewScreen() {
 
       const evaluation = (await modelResponse.json()) as InterviewModelEvaluation;
       const heuristicFeedback = buildAnswerFeedback(answer, currentQuestion, setup.job);
+      const normalizedCoachSummary = evaluation.evaluation.trim() || heuristicFeedback.coachSummary;
 
       storeTurn(
         {
@@ -579,7 +580,7 @@ export function InterviewScreen() {
           question: currentQuestion.prompt,
           answer,
           followUp: evaluation.follow_up_question,
-          evaluation: heuristicFeedback.coachSummary,
+          evaluation: normalizedCoachSummary,
           whyThisFollowUp: evaluation.why_this_follow_up,
           nextSkillToProbe: evaluation.next_skill_to_probe,
           scores: scoreAnswer({
@@ -587,7 +588,12 @@ export function InterviewScreen() {
             question: currentQuestion,
             job: setup.job,
           }),
-          feedback: heuristicFeedback,
+          feedback: {
+            ...heuristicFeedback,
+            strengths: evaluation.strengths.length ? evaluation.strengths : heuristicFeedback.strengths,
+            issues: evaluation.gaps.length ? evaluation.gaps : heuristicFeedback.issues,
+            coachSummary: normalizedCoachSummary,
+          },
         },
         evaluation,
       );

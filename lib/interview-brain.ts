@@ -46,6 +46,12 @@ type InterviewStage =
   | "role-behavioral"
   | "closing";
 
+type AnswerReviewPayload = Pick<InterviewModelEvaluation, "evaluation" | "strengths" | "gaps">;
+type NextQuestionPayload = Pick<
+  InterviewModelEvaluation,
+  "follow_up_question" | "why_this_follow_up" | "next_skill_to_probe"
+>;
+
 function inferStage(previousQuestionsCount: number): InterviewStage {
   if (previousQuestionsCount === 0) return "motivation";
   if (previousQuestionsCount === 1) return "experience-overview";
@@ -86,21 +92,20 @@ function isBehavioralSkill(skill: string) {
 
 function buildRoleBehavioralQuestion(state: InterviewBrainState) {
   const skill = normalizeSkillLabel(uncoveredSkill(state));
-  const role = state.role || "this role";
   const responsibilities = state.responsibilities || [];
   const responsibility = responsibilities[0]?.replace(/\s+/g, " ").trim() || "";
   const compactResponsibility =
     responsibility.length > 110 ? `${responsibility.slice(0, 107).trim()}...` : responsibility;
 
   if (isBehavioralSkill(skill)) {
-    return `Tell me about a time when you had to demonstrate ${skill} in a high-stakes or fast-moving situation. What happened, and what did you do?`;
+    return `Tell me about a time when you had to show ${skill}. What happened?`;
   }
 
   if (compactResponsibility) {
-    return `One part of this ${role} role is ${compactResponsibility.charAt(0).toLowerCase()}${compactResponsibility.slice(1)}. Tell me about a project where you used ${skill} in a meaningful way and what decisions or tradeoffs you had to make.`;
+    return `Tell me about a project where you used ${skill}. What were you trying to accomplish?`;
   }
 
-  return `Tell me about a project where you had to use ${skill} in a meaningful way. What was the situation, what decisions did you make, and what outcome did you drive?`;
+  return `Tell me about a project where you used ${skill}. What did you work on?`;
 }
 
 // Simple word-overlap similarity check. Returns true if newQ shares > 50% of
@@ -169,74 +174,75 @@ function conflictsWithRecentAngle(newQuestion: string, previousQuestions: string
 
 // Stage-aware fallback question used when the model fails or generates a near-duplicate.
 function stageFallbackQuestion(stage: InterviewStage, state: InterviewBrainState): string {
-  const role = state.role || "this role";
-  const skill = uncoveredSkill(state);
   const company =
     state.companyName?.trim() ||
     state.companySummary?.split(".")[0]?.trim() ||
     "this company";
+  const companyReference = normalizedCompanyReference(company);
+  const highlight = pickRelevantResumeHighlight(state).replace(/\s+/g, " ").trim();
 
   switch (stage) {
     case "motivation":
-      return `What about the ${role} role at ${company} genuinely stands out to you, and why does it feel like the right next step right now?`;
+      return companyReference
+        ? `Why are you interested in this role at ${companyReference}?`
+        : "Why are you interested in this role?";
     case "experience-overview":
-      return `Looking across your background, which experiences or projects feel most relevant to the ${role} role, and why?`;
+      return "Tell me about yourself.";
     case "project-deep-dive":
-      return `I was looking at ${pickRelevantResumeHighlight(state)} on your resume, and I'd love to hear more about it. What problem were you solving, what did you own directly, and what outcome came from the work?`;
+      return `I saw ${highlight} on your resume. Walk me through that project.`;
     case "project-follow-up":
-      return `Staying with that project for a moment, what was the most technically difficult part, and how did you work through it?`;
+      return "What was the hardest part of that project for you?";
     case "tradeoffs":
-      return `On that same project, what tradeoff or decision did you have to make around speed, quality, complexity, or collaboration, and how did you think it through?`;
+      return "What tradeoff or decision did you have to make on that project?";
     case "role-behavioral":
       return buildRoleBehavioralQuestion(state);
     case "closing":
-      return `Before we wrap up, what is the one thing about your background you most want me to remember for this role?`;
+      return "Before we wrap up, what would you want me to remember about you?";
   }
 }
 
-// Stage-aware system prompt. Short and directive so small models (0.6b) can follow it.
+// Stage-aware system prompt for the next interview question.
 function buildStageSystemPrompt(stage: InterviewStage): string {
   const jsonShape =
-    'Return ONLY strict JSON: {"evaluation": string, "strengths": [string, string], ' +
-    '"gaps": [string, string], "follow_up_question": string, ' +
-    '"why_this_follow_up": string, "next_skill_to_probe": string}.';
-  const answerCoachRule =
-    "evaluation, strengths, and gaps must critique ONLY the quality of the candidate's answer to the latest question. " +
-    "Focus on clarity, specificity, structure, relevance to the exact question, confidence, and completeness. " +
-    "Do NOT judge job fit, readiness, technical qualifications, missing skills, resume strength, or career direction.";
+    'Return ONLY strict JSON: {"follow_up_question": string, "why_this_follow_up": string, "next_skill_to_probe": string}.';
+  const interviewerRule =
+    "Speak like a real interviewer talking to a candidate in a live interview. " +
+    "Ask one concise, natural, conversational interview question. " +
+    "Do NOT ask analytical or meta questions like 'what do you understand' or 'what are the most relevant aspects'. " +
+    "Do NOT use placeholders.";
 
   switch (stage) {
     case "motivation":
       return (
         `You are a professional interviewer. ${jsonShape} ` +
-        `${answerCoachRule} ` +
+        `${interviewerRule} ` +
         "follow_up_question must be a MOTIVATION question. " +
         "Use the company and role fields from the context — do NOT use placeholders like [Company Name]. " +
-        "Ask why the candidate wants this specific role at this company, and why now in their career. " +
+        "Ask why the candidate wants this specific role. " +
         "One concise, direct sentence."
       );
 
     case "experience-overview":
       return (
         `You are a professional interviewer. ${jsonShape} ` +
-        `${answerCoachRule} ` +
-        "follow_up_question must ask for a general overview of the candidate's most relevant experience for the role. " +
-        "Reference the role requirements explicitly. Do not jump into one narrow project yet. One concise direct sentence."
+        `${interviewerRule} ` +
+        "follow_up_question must ask for a simple overview of the candidate's background. " +
+        "Do not turn it into an analysis prompt. One concise direct sentence."
       );
 
     case "project-deep-dive":
       return (
         `You are a professional interviewer. ${jsonShape} ` +
-        `${answerCoachRule} ` +
+        `${interviewerRule} ` +
         "follow_up_question must choose ONE specific project or technical example from the resume and ask for a deep walkthrough. " +
-        "Use resume_highlights and role requirements to choose the best project. Ask about ownership, problem, stack, and result. " +
+        "Use resume_highlights to choose the best project. Ask about it in a natural way. " +
         "Do NOT use generic fit wording."
       );
 
     case "project-follow-up":
       return (
         `You are a professional interviewer. ${jsonShape} ` +
-        `${answerCoachRule} ` +
+        `${interviewerRule} ` +
         "The candidate just described a project. follow_up_question must ask one focused follow-up on that same project. " +
         "Probe missing depth such as challenge, ownership boundary, decision-making, metrics, or implementation details. " +
         "Do NOT switch to a new topic."
@@ -245,7 +251,7 @@ function buildStageSystemPrompt(stage: InterviewStage): string {
     case "tradeoffs":
       return (
         `You are a professional interviewer. ${jsonShape} ` +
-        `${answerCoachRule} ` +
+        `${interviewerRule} ` +
         "follow_up_question must ask about tradeoffs, technical decisions, collaboration, metrics, stakeholder communication, or outcomes. " +
         "Keep it tied to the project or experience already under discussion."
       );
@@ -253,7 +259,7 @@ function buildStageSystemPrompt(stage: InterviewStage): string {
     case "role-behavioral":
       return (
         `You are a professional interviewer. ${jsonShape} ` +
-        `${answerCoachRule} ` +
+        `${interviewerRule} ` +
         "follow_up_question must be a role-specific or behavioral question tied to the actual job. " +
         'If behavioral, it may start with "Tell me about a time when". ' +
         "Use uncovered required skills, responsibilities, or working style expectations from the posting. " +
@@ -263,11 +269,33 @@ function buildStageSystemPrompt(stage: InterviewStage): string {
     case "closing":
       return (
         `You are a professional interviewer. ${jsonShape} ` +
-        `${answerCoachRule} ` +
+        `${interviewerRule} ` +
         "follow_up_question should invite the candidate to make their strongest final case or " +
         "reflect on the conversation. Keep it brief and warm."
       );
   }
+}
+
+function buildAnswerReviewSystemPrompt() {
+  return (
+    'Return ONLY strict JSON: {"evaluation": string}. ' +
+    "You are a supportive interview coach reviewing ONE candidate answer. " +
+    "Analyze the answer and provide feedback that identifies ONE specific strength and ONE concrete improvement. " +
+    "Use an encouraging, constructive tone. " +
+
+    "Format the evaluation exactly like this: " +
+    'Strength: [positive observation]\nImprovement: [specific suggestion with an example]. ' +
+
+    "RULES: " +
+    "- Keep each section to 2-3 sentences maximum. " +
+    "- Base the feedback on the actual answer, question, and resume context. " +
+    "- Focus only on answer quality: clarity, specificity, structure, relevance, completeness, and confidence. " +
+    "- Do NOT judge overall job fit or qualifications. " +
+    "- Do NOT quote long chunks of the answer. " +
+    "- Avoid generic wording that could apply to any answer. " +
+    "- The improvement must include a practical example of how to answer better next time. " +
+    "- If no real strength stands out, say that gently but honestly."
+  );
 }
 
 function sanitizeList(input: unknown): string[] {
@@ -323,9 +351,9 @@ async function polishQuestion(
     const polished = await provider.generateJson<{ question?: string }>({
       systemPrompt:
         'You rewrite interview questions. Return ONLY strict JSON: {"question": string}. ' +
-        "Rewrite the question so it sounds like a natural, professional interviewer. " +
-        "Keep it concise, grammatically correct, and easy to answer. Preserve the core intent. " +
-        "Do not introduce placeholders, resume noise, or awkward wording. " +
+        "Rewrite the question so it sounds like a real interviewer speaking to a candidate. " +
+        "Keep it concise, conversational, grammatically correct, and easy to answer. Preserve the core intent. " +
+        "Do not introduce placeholders, analysis language, resume noise, or awkward wording. " +
         "Do not paste long job-description text into the question.",
       userPrompt: JSON.stringify({
         stage,
@@ -347,11 +375,8 @@ async function polishQuestion(
 // A reliable, role-aware intro prompt that starts every interview cleanly.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function generateOpeningQuestion(state: InterviewBrainState) {
-  const role = state.role || "this role";
-  const company = normalizedCompanyReference(state.companyName);
-  const roleContext = company ? `${role} role at ${company}` : `${role} role`;
   const provider = getLlmProvider();
-  const baseQuestion = `To get started, tell me a bit about yourself and what led you to apply for the ${roleContext}.`;
+  const baseQuestion = "Tell me about yourself.";
 
   return {
     question: await polishQuestion(provider, baseQuestion, "motivation", state),
@@ -362,6 +387,50 @@ export async function generateOpeningQuestion(state: InterviewBrainState) {
   };
 }
 
+function normalizeFeedbackBlock(text: string, fallback: string) {
+  const cleaned = text
+    .replace(/```(?:json)?/gi, "")
+    .replace(/\r/g, "")
+    .replace(/"strengths"\s*:\s*\[[\s\S]*$/i, "")
+    .replace(/"gaps"\s*:\s*\[[\s\S]*$/i, "")
+    .trim();
+
+  const strengthMatch = cleaned.match(/Strength:\s*([\s\S]*?)(?=\s*Improvement:|$)/i);
+  const improvementMatch = cleaned.match(/Improvement:\s*([\s\S]*?)$/i);
+
+  const toSentence = (value: string) => {
+    const trimmed = value.replace(/\s+/g, " ").trim().replace(/[.]+$/g, "");
+    if (!trimmed) return "";
+    return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+  };
+
+  if (strengthMatch || improvementMatch) {
+    const strength = strengthMatch?.[1]?.replace(/\s+/g, " ").trim() || "None.";
+    const improvement = improvementMatch?.[1]?.replace(/\s+/g, " ").trim();
+
+    if (improvement) {
+      return `Strength: ${toSentence(strength)}\nImprovement: ${toSentence(improvement)}`;
+    }
+  }
+
+  const plainParagraph = cleaned.replace(/\s+/g, " ").trim();
+  if (!plainParagraph) {
+    return fallback;
+  }
+
+  const sentences = plainParagraph.match(/[^.!?]+[.!?]?/g)?.map((sentence) => sentence.trim()).filter(Boolean) || [];
+  if (!sentences.length) {
+    return fallback;
+  }
+
+  const clipped = sentences.slice(0, 4).map(toSentence);
+  if (clipped.length === 1) {
+    return `Strength: None.\nImprovement: ${clipped[0]}`;
+  }
+
+  return `Strength: ${clipped[0]}\nImprovement: ${clipped.slice(1).join(" ")}`;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Turn evaluation — stage-aware, anti-repetition, with quality fallbacks.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -370,7 +439,8 @@ export async function evaluateInterviewTurn(
 ): Promise<InterviewModelEvaluation> {
   const provider = getLlmProvider();
   const stage = inferStage(state.previousQuestions.length);
-  const systemPrompt = buildStageSystemPrompt(stage);
+  const questionSystemPrompt = buildStageSystemPrompt(stage);
+  const answerReviewSystemPrompt = buildAnswerReviewSystemPrompt();
   const skill = uncoveredSkill(state);
 
   // Include the current question in the "already asked" list so the model avoids it.
@@ -397,56 +467,71 @@ export async function evaluateInterviewTurn(
     latest_answer: (state.latestAnswer || "").slice(0, 500),
   });
 
-  const defaultEvaluation: InterviewModelEvaluation = {
-    evaluation: "The answer stayed broad, so it would be stronger with a clearer structure and one concrete detail tied directly to the question.",
-    strengths: ["Stayed on the question.", "Answered directly."],
+  const defaultAnswerReview: AnswerReviewPayload = {
+    evaluation:
+      "Strength: You gave a direct answer, which helps the interviewer understand your main point quickly.\nImprovement: The response would be stronger with one concrete example that shows what you did and what came out of it. For example, briefly name a project, explain your role, and end with the result.",
+    strengths: ["Answered directly."],
     gaps: [
-      "Add one concrete example or detail so the answer is easier to picture.",
-      "Use a clearer structure so the listener can follow the response.",
+      "Stayed too general to be memorable.",
+      "Needed a more concrete example.",
     ],
+  };
+
+  const defaultQuestionPlan: NextQuestionPayload = {
     follow_up_question: stageFallbackQuestion(stage, state),
     why_this_follow_up: `Moves the interview into the ${stage} stage.`,
     next_skill_to_probe: skill,
   };
 
   try {
-    const output = await provider.generateJson<InterviewModelEvaluation>({
-      systemPrompt,
+    const answerReviewOutput = await provider.generateJson<AnswerReviewPayload>({
+      systemPrompt: answerReviewSystemPrompt,
+      userPrompt: JSON.stringify({
+        question: state.latestQuestion || "",
+        answer: (state.latestAnswer || "").slice(0, 700),
+        resume_excerpt: state.resumeProjectSummary.slice(0, 350),
+      }),
+    });
+
+    const questionOutput = await provider.generateJson<NextQuestionPayload>({
+      systemPrompt: questionSystemPrompt,
       userPrompt,
     });
 
-    const rawFollowUp = sanitizeText(output.follow_up_question, "");
+    const rawFollowUp = sanitizeText(questionOutput.follow_up_question, "");
 
     // Anti-repetition: if the model generated something too close to a prior question,
     // fall back to the stage-appropriate question instead.
     const candidateQuestion =
       rawFollowUp &&
-      !isTooSimilar(rawFollowUp, allAskedQuestions) &&
-      !conflictsWithRecentAngle(rawFollowUp, allAskedQuestions)
+        !isTooSimilar(rawFollowUp, allAskedQuestions) &&
+        !conflictsWithRecentAngle(rawFollowUp, allAskedQuestions)
         ? ensureQuestionQuality(rawFollowUp, stage, state)
         : stageFallbackQuestion(stage, state);
     const followUpQuestion = await polishQuestion(provider, candidateQuestion, stage, state);
 
-    const strengths = sanitizeList(output.strengths);
-    const gaps = sanitizeList(output.gaps);
+    const strengths = sanitizeList(answerReviewOutput.strengths);
+    const gaps = sanitizeList(answerReviewOutput.gaps);
+    const evaluation = normalizeFeedbackBlock(
+      sanitizeText(answerReviewOutput.evaluation, defaultAnswerReview.evaluation),
+      defaultAnswerReview.evaluation,
+    );
 
     return {
-      evaluation: sanitizeText(
-        output.evaluation,
-        defaultEvaluation.evaluation,
-      ),
-      strengths: strengths.length ? strengths : defaultEvaluation.strengths,
-      gaps: gaps.length ? gaps : defaultEvaluation.gaps,
+      evaluation,
+      strengths: strengths.length ? strengths : defaultAnswerReview.strengths,
+      gaps: gaps.length ? gaps : defaultAnswerReview.gaps,
       follow_up_question: followUpQuestion,
       why_this_follow_up: sanitizeText(
-        output.why_this_follow_up,
-        defaultEvaluation.why_this_follow_up,
+        questionOutput.why_this_follow_up,
+        defaultQuestionPlan.why_this_follow_up,
       ),
-      next_skill_to_probe: sanitizeText(output.next_skill_to_probe, skill),
+      next_skill_to_probe: sanitizeText(questionOutput.next_skill_to_probe, skill),
     };
   } catch {
     return {
-      ...defaultEvaluation,
+      ...defaultAnswerReview,
+      ...defaultQuestionPlan,
       follow_up_question: stageFallbackQuestion(stage, state),
     };
   }
