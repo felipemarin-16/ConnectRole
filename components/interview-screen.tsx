@@ -705,8 +705,7 @@ export function InterviewScreen() {
   );
 
   const interviewView = (
-    <section className="animate-entrance relative mt-8 overflow-hidden rounded-[40px] border border-white/70 bg-[linear-gradient(120deg,rgba(212,255,215,0.92)_0%,rgba(195,232,247,0.96)_48%,rgba(159,181,255,0.92)_100%)] px-6 py-8 shadow-[0_35px_80px_-35px_rgba(74,103,168,0.45)] sm:px-10 sm:py-9 lg:px-12">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.34),transparent_35%)]" />
+    <section className="animate-entrance relative mt-8 overflow-hidden rounded-[40px] border border-white bg-white/40 px-6 py-8 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.08)] ring-1 ring-slate-900/5 backdrop-blur-xl sm:px-10 sm:py-9 lg:px-12">
       <div className="relative flex min-h-[390px] flex-col sm:min-h-[410px]">
         <div className="flex h-12 items-center justify-between">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/60">
@@ -736,7 +735,7 @@ export function InterviewScreen() {
         </div>
 
         <div className="flex min-h-[96px] items-end pt-4">
-          <div className="w-full rounded-[26px] bg-white/42 px-5 py-4 backdrop-blur-sm">
+          <div className="w-full rounded-[26px] border border-white/60 bg-white/18 px-5 py-4 backdrop-blur-md">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/68">
               Coach tip
             </p>
