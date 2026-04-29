@@ -2,7 +2,8 @@
 
 RoleReady is a premium, high-fidelity mock interview platform designed to help candidates practice for specific roles using their own background and target job descriptions. Built with **Next.js**, **Tailwind CSS**, and **TypeScript**, it leverages advanced LLMs to provide a realistic, adaptive, and supportive interview experience.
 
-![RoleReady Screenshot](https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&q=80&w=2000&ixlib=rb-4.0.3)
+![RoleReady Screenshot 1](./public/RoleReady_1.png)
+![RoleReady Screenshot 2](./public/RoleReady_2.png)
 
 ## ✨ Key Features
 
