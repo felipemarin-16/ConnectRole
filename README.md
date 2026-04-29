@@ -56,9 +56,15 @@ RoleReady is a premium, high-fidelity mock interview platform designed to help c
 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **Voice**: [Google Cloud Text-to-Speech](https://cloud.google.com/text-to-speech) & Browser Web Speech API
-- **AI/LLM**: [OpenAI](https://openai.com/) / [Groq](https://groq.com/)
+- **Voice Output (TTS)**: [Google Cloud Text-to-Speech](https://cloud.google.com/text-to-speech) (for the coach's voice)
+- **Speech Recognition (STT)**: Browser Web Speech API (runs free and locally in the browser, **no Whisper API needed**)
+- **AI/LLM**: [OpenAI](https://openai.com/) or [Groq](https://groq.com/) (used strictly to generate smart interview questions and feedback)
 - **PDF Parsing**: Client-side text extraction
+
+## 🚀 Deployment
+
+If you are deploying this project on platforms like **Vercel**, your `.env.local` file will *not* be uploaded (for security). 
+You must add your API keys (e.g., `OPENAI_API_KEY` and `GOOGLE_TTS_API_KEY`) directly into the **Environment Variables** section of your Vercel project settings for the app to work in production.
 
 ## 📝 License
 
