@@ -50,7 +50,7 @@ function TurnFeedbackCard({
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate">
             Question {index + 1} of {total}
           </p>
-          <h2 className="mt-3 max-w-[60ch] font-display text-[2rem] leading-[1.08] text-ink sm:text-[1.7rem]">
+          <h2 className="mt-3 max-w-[60ch] font-display text-[1.35rem] leading-[1.2] text-ink sm:text-[1.7rem] sm:leading-[1.12]">
             {turn.question}
           </h2>
         </div>

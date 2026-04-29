@@ -305,11 +305,11 @@ function Reveal({
 function ExplanationVisual({ kind }: { kind: ExplanationVisualKind }) {
   if (kind === "practice") {
     return (
-      <div className="relative mx-auto w-full max-w-[420px]">
-        <div className="absolute inset-x-10 top-6 h-28 rounded-full bg-[radial-gradient(circle,_rgba(158,208,255,0.28),_rgba(158,208,255,0))] blur-3xl" />
-        <div className="relative overflow-hidden rounded-[24px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(240,246,255,0.62))] p-4 shadow-[0_22px_60px_rgba(17,24,39,0.09)] backdrop-blur-xl">
+      <div className="relative mx-auto w-full max-w-[320px] sm:max-w-[380px] lg:max-w-[420px]">
+        <div className="absolute inset-x-10 top-6 h-24 rounded-full bg-[radial-gradient(circle,_rgba(158,208,255,0.28),_rgba(158,208,255,0))] blur-3xl sm:h-28" />
+        <div className="relative overflow-hidden rounded-[22px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(240,246,255,0.62))] p-3 shadow-[0_22px_60px_rgba(17,24,39,0.09)] backdrop-blur-xl sm:rounded-[24px] sm:p-4">
           <div className="grid gap-3 sm:grid-cols-[0.95fr_1.05fr]">
-            <div className="rounded-[18px] border border-ink/8 bg-white/82 p-3.5 shadow-[0_16px_34px_rgba(15,23,42,0.07)]">
+            <div className="rounded-[18px] border border-ink/8 bg-white/82 p-3 shadow-[0_16px_34px_rgba(15,23,42,0.07)] sm:p-3.5">
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate/70">Resume context</p>
               <div className="mt-4 space-y-2.5">
                 <div className="h-2.5 w-24 rounded-full bg-ink/80" />
@@ -323,20 +323,20 @@ function ExplanationVisual({ kind }: { kind: ExplanationVisualKind }) {
               </div>
             </div>
 
-            <div className="rounded-[20px] border border-ink/8 bg-[linear-gradient(180deg,rgba(232,244,255,0.92),rgba(255,255,255,0.88))] p-3.5 shadow-[0_18px_36px_rgba(15,23,42,0.07)]">
+            <div className="rounded-[20px] border border-ink/8 bg-[linear-gradient(180deg,rgba(232,244,255,0.92),rgba(255,255,255,0.88))] p-3 shadow-[0_18px_36px_rgba(15,23,42,0.07)] sm:p-3.5">
               <div className="flex items-center justify-between">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate/70">Warm-up interview</p>
                 <span className="rounded-full bg-emerald-500/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-emerald-700">
                   Live
                 </span>
               </div>
-              <div className="mt-4 flex h-20 items-center justify-center rounded-[18px] border border-white/70 bg-white/80">
-                <div className="flex items-end gap-1.5 text-accent">
+              <div className="mt-4 flex h-16 items-center justify-center rounded-[18px] border border-white/70 bg-white/80 sm:h-20">
+                <div className="flex items-end gap-1 text-accent sm:gap-1.5">
                   {[18, 26, 38, 22, 34, 46, 29, 18, 31, 42, 26].map((value, index) => (
                     <span
                       key={`practice-bar-${index}`}
-                      className="w-2 rounded-full bg-[linear-gradient(180deg,#79C8FF,#3E6EFF)]"
-                      style={{ height: `${value}px` }}
+                      className="w-1.5 rounded-full bg-[linear-gradient(180deg,#79C8FF,#3E6EFF)] sm:w-2"
+                      style={{ height: `${Math.max(14, Math.round(value * 0.82))}px` }}
                     />
                   ))}
                 </div>
@@ -362,10 +362,10 @@ function ExplanationVisual({ kind }: { kind: ExplanationVisualKind }) {
 
   if (kind === "feedback") {
     return (
-      <div className="relative mx-auto w-full max-w-[420px]">
-        <div className="absolute inset-x-12 top-10 h-24 rounded-full bg-[radial-gradient(circle,_rgba(186,224,204,0.28),_rgba(186,224,204,0))] blur-3xl" />
-        <div className="relative overflow-hidden rounded-[24px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(241,247,244,0.64))] p-4 shadow-[0_22px_60px_rgba(17,24,39,0.09)] backdrop-blur-xl">
-          <div className="rounded-[20px] border border-ink/8 bg-white/84 px-4 py-3.5 shadow-[0_16px_34px_rgba(15,23,42,0.07)]">
+      <div className="relative mx-auto w-full max-w-[320px] sm:max-w-[380px] lg:max-w-[420px]">
+        <div className="absolute inset-x-12 top-10 h-20 rounded-full bg-[radial-gradient(circle,_rgba(186,224,204,0.28),_rgba(186,224,204,0))] blur-3xl sm:h-24" />
+        <div className="relative overflow-hidden rounded-[22px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(241,247,244,0.64))] p-3 shadow-[0_22px_60px_rgba(17,24,39,0.09)] backdrop-blur-xl sm:rounded-[24px] sm:p-4">
+          <div className="rounded-[20px] border border-ink/8 bg-white/84 px-3.5 py-3 shadow-[0_16px_34px_rgba(15,23,42,0.07)] sm:px-4 sm:py-3.5">
             <div className="flex items-center justify-between gap-3">
               <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate/70">Answer review</p>
               <div className="flex gap-1.5">
@@ -400,11 +400,11 @@ function ExplanationVisual({ kind }: { kind: ExplanationVisualKind }) {
   }
 
   return (
-    <div className="relative mx-auto w-full max-w-[420px]">
-      <div className="absolute inset-x-10 top-10 h-24 rounded-full bg-[radial-gradient(circle,_rgba(222,204,255,0.24),_rgba(222,204,255,0))] blur-3xl" />
-      <div className="relative overflow-hidden rounded-[24px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(246,242,255,0.64))] p-4 shadow-[0_22px_60px_rgba(17,24,39,0.09)] backdrop-blur-xl">
+    <div className="relative mx-auto w-full max-w-[320px] sm:max-w-[380px] lg:max-w-[420px]">
+      <div className="absolute inset-x-10 top-10 h-20 rounded-full bg-[radial-gradient(circle,_rgba(222,204,255,0.24),_rgba(222,204,255,0))] blur-3xl sm:h-24" />
+      <div className="relative overflow-hidden rounded-[22px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.82),rgba(246,242,255,0.64))] p-3 shadow-[0_22px_60px_rgba(17,24,39,0.09)] backdrop-blur-xl sm:rounded-[24px] sm:p-4">
         <div className="grid gap-3">
-          <div className="flex items-center justify-between rounded-[18px] border border-ink/8 bg-white/82 px-4 py-3 shadow-[0_16px_34px_rgba(15,23,42,0.07)]">
+          <div className="flex items-center justify-between rounded-[18px] border border-ink/8 bg-white/82 px-3.5 py-3 shadow-[0_16px_34px_rgba(15,23,42,0.07)] sm:px-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate/70">Round one</p>
               <p className="mt-1 text-sm text-ink">Good foundation, but needs a sharper example.</p>
@@ -413,7 +413,7 @@ function ExplanationVisual({ kind }: { kind: ExplanationVisualKind }) {
               Refine
             </span>
           </div>
-          <div className="flex items-center justify-between rounded-[18px] border border-ink/8 bg-white/88 px-4 py-3 shadow-[0_18px_36px_rgba(15,23,42,0.07)]">
+          <div className="flex items-center justify-between rounded-[18px] border border-ink/8 bg-white/88 px-3.5 py-3 shadow-[0_18px_36px_rgba(15,23,42,0.07)] sm:px-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate/70">Round two</p>
               <p className="mt-1 text-sm text-ink">Stronger structure, clearer ownership, better finish.</p>

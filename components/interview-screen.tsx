@@ -27,18 +27,18 @@ function getQuestionTextSize(prompt: string) {
   const length = prompt.trim().length;
 
   if (length > 260) {
-    return "text-base sm:text-lg";
+    return "text-[0.98rem] sm:text-lg";
   }
 
   if (length > 180) {
-    return "text-lg sm:text-xl";
+    return "text-[1.08rem] sm:text-xl";
   }
 
   if (length > 110) {
-    return "text-xl sm:text-2xl";
+    return "text-[1.22rem] sm:text-2xl";
   }
 
-  return "text-2xl sm:text-[2rem]";
+  return "text-[1.45rem] sm:text-[2rem]";
 }
 
 function estimateSpeechMs(text: string) {
@@ -763,20 +763,20 @@ export function InterviewScreen() {
 
   const introView = (
     <section className="mt-6">
-      <div className="mx-auto flex min-h-[430px] max-w-4xl flex-col items-center justify-center px-4 text-center">
+      <div className="mx-auto flex min-h-[390px] max-w-4xl flex-col items-center justify-center px-4 text-center sm:min-h-[430px]">
         <LiveAudioWaveform
           tone="coach"
           active={speaking}
           mediaElement={activeAudioElement}
           activityLevel={browserSpeechLevel}
-          className="mb-8 w-40 sm:w-48"
+          className="mb-6 w-36 sm:mb-8 sm:w-48"
         />
         <div className="w-full max-w-4xl space-y-4">
           {introLines.map((line, index) => (
             <p
               key={line}
               className={cn(
-                "text-xl leading-9 text-ink/82 transition-all duration-500 sm:text-[1.7rem] sm:leading-[1.9]",
+                "text-[1.05rem] leading-8 text-ink/82 transition-all duration-500 sm:text-[1.7rem] sm:leading-[1.9]",
                 visibleIntroLines > index
                   ? activeIntroLine === index
                     ? "translate-y-0 opacity-100"
@@ -793,21 +793,21 @@ export function InterviewScreen() {
   );
 
   const interviewView = (
-    <section className="animate-entrance relative mx-auto mt-6 max-w-5xl overflow-hidden rounded-[45px] border border-white bg-white/40 px-6 py-6 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.08)] ring-1 ring-slate-900/5 backdrop-blur-xl sm:px-10 sm:py-7 lg:px-12">
-      <div className="relative flex min-h-[320px] flex-col sm:min-h-[340px]">
+    <section className="animate-entrance relative mx-auto mt-6 max-w-5xl overflow-hidden rounded-[32px] border border-white bg-white/40 px-4 py-5 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.08)] ring-1 ring-slate-900/5 backdrop-blur-xl sm:rounded-[45px] sm:px-10 sm:py-7 lg:px-12">
+      <div className="relative flex min-h-[320px] flex-col">
         <div className="flex h-10 items-center justify-center">
-          <p className="text-[16px] font-semibold uppercase tracking-[0.2em] text-ink/60">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.18em] text-ink/60 sm:text-[16px] sm:tracking-[0.2em]">
             {progressLabel}
           </p>
         </div>
 
-        <div className="flex flex-1 flex-col items-center justify-center py-4">
+        <div className="flex flex-1 flex-col items-center justify-center py-3 sm:py-4">
           <LiveAudioWaveform
             tone="coach"
             active={speaking}
             mediaElement={activeAudioElement}
             activityLevel={browserSpeechLevel}
-            className="mb-4 w-20 sm:w-24"
+            className="mb-4 w-28 sm:w-32"
           />
           <div className="mx-auto w-full max-w-5xl text-center">
             <h2
@@ -822,8 +822,8 @@ export function InterviewScreen() {
           </div>
         </div>
 
-        <div key={`tip-${currentQuestion.id}`} className="animate-entrance flex min-h-[80px] items-end pt-2 [animation-delay:150ms]">
-          <div className="w-full rounded-[26px] border border-white/60 bg-white/18 px-5 py-4 backdrop-blur-md">
+        <div key={`tip-${currentQuestion.id}`} className="animate-entrance flex min-h-[88px] items-end pt-3 [animation-delay:150ms] sm:min-h-[80px] sm:pt-2">
+          <div className="w-full rounded-[22px] border border-white/60 bg-white/18 px-4 py-4 backdrop-blur-md sm:rounded-[26px] sm:px-5">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/68">
               Coach tip
             </p>
@@ -838,20 +838,20 @@ export function InterviewScreen() {
 
   const outroView = (
     <section className="animate-entrance mt-6">
-      <div className="mx-auto flex min-h-[430px] max-w-4xl flex-col items-center justify-center px-4 text-center">
+      <div className="mx-auto flex min-h-[390px] max-w-4xl flex-col items-center justify-center px-4 text-center sm:min-h-[430px]">
         <LiveAudioWaveform
           tone="coach"
           active={speaking}
           mediaElement={activeAudioElement}
           activityLevel={browserSpeechLevel}
-          className="mb-8 w-20 sm:w-24"
+          className="mb-6 w-36 sm:mb-8 sm:w-48"
         />
         <div className="w-full max-w-4xl space-y-4">
           {outroLines.map((line, index) => (
             <p
               key={line}
               className={cn(
-                "text-xl leading-9 text-ink/82 transition-all duration-500 sm:text-[1.7rem] sm:leading-[1.9]",
+                "text-[1.05rem] leading-8 text-ink/82 transition-all duration-500 sm:text-[1.7rem] sm:leading-[1.9]",
                 visibleOutroLines > index
                   ? activeOutroLine === index
                     ? "translate-y-0 opacity-100"
@@ -869,10 +869,10 @@ export function InterviewScreen() {
 
   return (
     <main className="relative mx-auto flex min-h-screen w-full max-w-[82rem] flex-col bg-transparent">
-      <div className="absolute left-6 right-6 top-10 z-50 sm:left-10 lg:left-14 lg:right-14 xl:left-16 xl:right-16">
+      <div className="absolute left-4 right-4 top-6 z-50 sm:left-10 sm:top-10 lg:left-14 lg:right-14 xl:left-16 xl:right-16">
         <SiteHeader current="interview" />
       </div>
-      <div className="mx-auto w-full max-w-[82rem] px-6 pb-6 pt-36 sm:px-10 lg:px-14 xl:px-16">
+      <div className="mx-auto w-full max-w-[82rem] px-4 pb-6 pt-32 sm:px-10 sm:pt-36 lg:px-14 xl:px-16">
         {introActive ? introView : outroStage !== "idle" ? outroView : shouldShowQuestionPanel ? interviewView : null}
 
         <section className={cn("mt-4 transition-opacity duration-300", introActive || outroStage !== "idle" ? "pointer-events-none opacity-0" : "opacity-100")}>
