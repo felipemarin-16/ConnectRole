@@ -95,6 +95,9 @@ export type InterviewContext = {
   resumeProjectSummary: string;
   resumeHighlights: string[];
   resumeSkills: string[];
+  resumeEducation: string[];
+  resumeExperience: string[];
+  resumeProjects: string[];
   jobSummary: string;
 };
 
@@ -128,7 +131,7 @@ export type FinalReport = {
   strengths: string[];
   weaknesses: string[];
   improvedAnswers: { questionId: string; question: string; improvedAnswer: string }[];
-  resumeGaps: string[];
   recommendations: string[];
   coverLetterText: string;
+  interviewSummary?: string;
 };

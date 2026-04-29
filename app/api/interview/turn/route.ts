@@ -14,6 +14,9 @@ type TurnRequest = {
     resumeProjectSummary?: string;
     resumeHighlights?: string[];
     resumeSkills?: string[];
+    resumeEducation?: string[];
+    resumeExperience?: string[];
+    resumeProjects?: string[];
     jobSummary?: string;
     companySummary?: string;
     requiredSkills?: string[];
@@ -55,6 +58,9 @@ export async function POST(request: Request) {
     resumeProjectSummary: state.resumeProjectSummary,
     resumeHighlights: Array.isArray(state.resumeHighlights) ? state.resumeHighlights : [],
     resumeSkills: Array.isArray(state.resumeSkills) ? state.resumeSkills : [],
+    resumeEducation: Array.isArray(state.resumeEducation) ? state.resumeEducation : [],
+    resumeExperience: Array.isArray(state.resumeExperience) ? state.resumeExperience : [],
+    resumeProjects: Array.isArray(state.resumeProjects) ? state.resumeProjects : [],
     jobSummary: state.jobSummary || "",
     companySummary: state.companySummary || "",
     requiredSkills: Array.isArray(state.requiredSkills) ? state.requiredSkills : [],

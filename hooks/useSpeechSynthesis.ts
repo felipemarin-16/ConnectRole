@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { CoachVoice } from "@/lib/types";
 
-type TtsMode = "auto" | "browser" | "elevenlabs";
+type TtsMode = "auto" | "browser" | "cloud";
 
 const FEMALE_HINTS = [
   "samantha",
@@ -191,7 +191,10 @@ export function useSpeechSynthesis(
     };
   }, [mode]);
 
-  async function playElevenLabs(text: string) {
+  async function playCloudTts(
+    text: string,
+    callbacks?: { onStart?: () => void; onComplete?: () => void; onError?: () => void },
+  ) {
     setLastError("");
     const response = await fetch("/api/tts", {
       method: "POST",
@@ -205,7 +208,7 @@ export function useSpeechSynthesis(
     });
 
     if (!response.ok) {
-      let message = "ElevenLabs request failed.";
+      let message = "Cloud TTS request failed.";
 
       try {
         const payload = (await response.json()) as {
@@ -238,7 +241,10 @@ export function useSpeechSynthesis(
     setActiveAudioElement(audio);
     setBrowserSpeechLevel(0);
 
-    audio.onplay = () => setSpeaking(true);
+    audio.onplay = () => {
+      setSpeaking(true);
+      callbacks?.onStart?.();
+    };
     audio.onended = () => {
       setSpeaking(false);
       if (objectUrlRef.current) {
@@ -248,6 +254,7 @@ export function useSpeechSynthesis(
       audioRef.current = null;
       setActiveAudioElement(null);
       stopBrowserActivityLoop();
+      callbacks?.onComplete?.();
     };
     audio.onerror = () => {
       setSpeaking(false);
@@ -258,6 +265,7 @@ export function useSpeechSynthesis(
       audioRef.current = null;
       setActiveAudioElement(null);
       stopBrowserActivityLoop();
+      callbacks?.onError?.();
     };
 
     await audio.play();
@@ -446,9 +454,9 @@ export function useSpeechSynthesis(
           return;
         }
 
-        const played = await playElevenLabs(text);
+        const played = await playCloudTts(text, options);
 
-        if (!played && allowBrowserFallback && mode !== "elevenlabs") {
+        if (!played && allowBrowserFallback && mode !== "cloud") {
           playBrowserFallback(text, options);
         }
       } catch (error) {
@@ -456,13 +464,13 @@ export function useSpeechSynthesis(
           error instanceof DOMException && error.name === "NotAllowedError";
 
         if (blockedByAutoplay) {
-          setLastError("ElevenLabs is ready. Click Replay to start coach audio after browser autoplay restrictions.");
+          setLastError("Cloud TTS is ready. Click Replay to start coach audio after browser autoplay restrictions.");
           setSpeaking(false);
           options?.onError?.();
           return;
         }
 
-        if (allowBrowserFallback && mode !== "elevenlabs") {
+        if (allowBrowserFallback && mode !== "cloud") {
           playBrowserFallback(text, options);
           return;
         }

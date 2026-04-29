@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 @keyframes entrance {
-  from { opacity: 0; transform: translateY(22px); }
+  from { opacity: 0; transform: translateY(28px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
@@ -17,6 +17,17 @@
   to   { opacity: 1; }
 }
 
+@keyframes scroll-rise {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @keyframes recording-pulse {
   0%   { box-shadow: 0 0 0 0   rgba(239, 68, 68, 0.45); }
   70%  { box-shadow: 0 0 0 14px rgba(239, 68, 68, 0);   }
@@ -25,7 +36,7 @@
 
 @layer utilities {
   .animate-entrance {
-    animation: entrance 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: entrance 0.95s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .animate-step-in {
     animation: step-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -35,6 +46,45 @@
   }
   .animate-recording-pulse {
     animation: recording-pulse 1.4s ease-out infinite;
+  }
+
+  .scroll-reveal {
+    animation: scroll-rise 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .reveal-item {
+    opacity: 0;
+    transform: translateY(28px) scale(0.985);
+    transition:
+      opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
+  }
+
+  .reveal-item.is-visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  @supports (animation-timeline: view()) {
+    .scroll-reveal {
+      animation-timeline: view();
+      animation-range: entry 6% cover 42%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scroll-reveal {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+
+    .reveal-item {
+      opacity: 1;
+      transform: none;
+      transition: none;
+    }
   }
 }
 

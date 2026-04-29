@@ -43,7 +43,8 @@ function getQuestionTextSize(prompt: string) {
 
 function estimateSpeechMs(text: string) {
   const words = text.trim().split(/\s+/).filter(Boolean).length;
-  return Math.max(1400, words * 340);
+  // Increase timing to guarantee it doesn't interrupt slower TTS
+  return Math.max(3000, words * 600);
 }
 
 type IntroStage = "idle" | "playing" | "pause" | "done";
@@ -61,13 +62,18 @@ export function InterviewScreen() {
   const [spokenQuestionId, setSpokenQuestionId] = useState("");
   const [openingDelivered, setOpeningDelivered] = useState(false);
   const [introStage, setIntroStage] = useState<IntroStage>("idle");
+  const [outroStage, setOutroStage] = useState<"idle" | "playing" | "done">("idle");
   const [visibleIntroLines, setVisibleIntroLines] = useState(0);
   const [activeIntroLine, setActiveIntroLine] = useState(-1);
+  const [visibleOutroLines, setVisibleOutroLines] = useState(0);
+  const [activeOutroLine, setActiveOutroLine] = useState(-1);
   const [userMicStream, setUserMicStream] = useState<MediaStream | null>(null);
   const [evaluating, setEvaluating] = useState(false);
   const introTimersRef = useRef<number[]>([]);
   const introSequenceQuestionRef = useRef<string | null>(null);
   const introSpeechSequenceRef = useRef(0);
+  const outroTimersRef = useRef<number[]>([]);
+  const outroSpeechSequenceRef = useRef(0);
   const speakRef = useRef<
     (
       text: string,
@@ -78,8 +84,8 @@ export function InterviewScreen() {
         onError?: () => void;
       },
     ) => void
-  >(() => {});
-  const stopSpeakingRef = useRef<() => void>(() => {});
+  >(() => { });
+  const stopSpeakingRef = useRef<() => void>(() => { });
 
   useEffect(() => {
     const sessionSetup = getSetupSession();
@@ -104,35 +110,49 @@ export function InterviewScreen() {
   const interviewContext = setup?.context ?? {
     candidateName: setup?.resume.name || "there",
     role: setup?.job.roleTitle || "Target Role",
+    companyName: setup?.job.companyName || "the company",
+    jobType: setup?.job.jobType || "Full-time",
     seniority: "mid-level",
     interviewType: "mixed behavioral and role-fit",
     resumeProjectSummary: setup?.resume.rawText.slice(0, 600) || "",
     resumeHighlights: setup?.resume.highlights.slice(0, 5) || [],
     resumeSkills: setup?.resume.skills.slice(0, 12) || [],
+    resumeEducation: setup?.resume.education.slice(0, 5) || [],
+    resumeExperience: setup?.resume.experience.slice(0, 5) || [],
+    resumeProjects: setup?.resume.projects.slice(0, 5) || [],
     jobSummary: setup?.job.summary || "",
   };
   const candidateFirstName = getFirstName(setup?.context.candidateName ?? setup?.resume.name ?? "");
   const interviewRole = setup?.context.role || setup?.job.roleTitle || "this role";
   const interviewCompany = setup?.context.companyName || setup?.job.companyName || "";
+  const coachName = setup?.coachVoice === "male" ? "Mark" : "Rachel";
   const introLines = useMemo(
     () => [
       `Hi ${candidateFirstName}, it's nice to meet you.`,
       interviewCompany && interviewCompany !== "the company"
-        ? `I'm Mark, and I'll be interviewing you today for the ${interviewRole} position at ${interviewCompany}.`
-        : `I'm Mark, and I'll be interviewing you today for the ${interviewRole} position.`,
+        ? `I'm ${coachName}, and I'll be interviewing you today for the ${interviewRole} position at ${interviewCompany}.`
+        : `I'm ${coachName}, and I'll be interviewing you today for the ${interviewRole} position.`,
       "Take a breath, settle in, and answer as clearly as you can.",
     ],
-    [candidateFirstName, interviewCompany, interviewRole],
+    [candidateFirstName, interviewCompany, interviewRole, coachName],
+  );
+  const outroLines = useMemo(
+    () => [
+      "That's all the questions I have.",
+      `I appreciate your time, ${candidateFirstName}.`,
+      "Nice work today — your feedback and results will be ready shortly.",
+    ],
+    [candidateFirstName],
   );
   const isFirstQuestion = Boolean(
     currentQuestion &&
-      interview &&
-      interview.currentQuestionIndex === 0 &&
-      interview.turns.length === 0,
+    interview &&
+    interview.currentQuestionIndex === 0 &&
+    interview.turns.length === 0,
   );
   const introActive = isFirstQuestion && !openingDelivered;
   const questionVisible = !introActive || introStage === "done";
-  const ttsMode = "browser";
+  const ttsMode = (process.env.NEXT_PUBLIC_TTS_MODE as "auto" | "browser" | "cloud") || "cloud";
   const {
     supported: ttsSupported,
     ready: ttsReady,
@@ -166,36 +186,40 @@ export function InterviewScreen() {
       : introStage === "pause"
         ? "Continue"
         : "Skip intro"
-    : evaluating
-      ? "Analyzing"
-      : listening
-        ? "Stop"
-        : pendingAdvance
-          ? interview && interview.turns.length >= interview.targetQuestionCount
-            ? "Finish"
-            : "Next"
-          : "Speak";
+    : outroStage === "playing"
+      ? "Finishing"
+      : evaluating
+        ? "Analyzing"
+        : listening
+          ? "Stop"
+          : pendingAdvance
+            ? interview && interview.turns.length >= interview.targetQuestionCount
+              ? "Finish"
+              : "Next"
+            : "Speak";
   const statusText = introActive && introStage !== "done"
     ? voiceError
       ? "Browser blocked coach audio. Tap Play intro or Continue."
       : introStage === "pause"
-      ? "Beginning the first question shortly..."
-      : "Coach introduction playing..."
-    : evaluating
-      ? "Analyzing your answer..."
-      : speaking
-        ? "Coach is speaking..."
-        : listening
-          ? "Recording your answer..."
-          : pendingAdvance
-            ? "Ready for the next question."
-            : questionVisible
-              ? "Tap Speak when you're ready."
-              : "Preparing your first question...";
+        ? "Beginning the first question shortly..."
+        : "Coach introduction playing..."
+    : outroStage === "playing"
+      ? "Wrapping up the interview..."
+      : evaluating
+        ? "Analyzing your answer..."
+        : speaking
+          ? "Coach is speaking..."
+          : listening
+            ? "Recording your answer..."
+            : pendingAdvance
+              ? "Ready for the next question."
+              : questionVisible
+                ? "Tap Speak when you're ready."
+                : "Preparing your first question...";
   const mainButtonDisabled = introActive
     ? evaluating || !introManualActionEnabled
-    : evaluating || (!pendingAdvance && (!sttSupported || speaking));
-  const shouldShowQuestionPanel = !introActive && Boolean(currentQuestion?.prompt?.trim());
+    : evaluating || outroStage === "playing" || (!pendingAdvance && (!sttSupported || speaking));
+  const shouldShowQuestionPanel = !introActive && outroStage === "idle" && Boolean(currentQuestion?.prompt?.trim());
 
   useEffect(() => {
     speakRef.current = speak;
@@ -298,6 +322,80 @@ export function InterviewScreen() {
       introTimersRef.current = [];
     };
   }, [currentQuestion, currentQuestionId, interview, INTRO_PAUSE_MS, introLines, isFirstQuestion, openingDelivered, ttsReady, ttsSupported]);
+
+  useEffect(() => {
+    if (outroStage !== "playing") {
+      return;
+    }
+
+    outroTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    outroTimersRef.current = [];
+
+    setVisibleOutroLines(0);
+    setActiveOutroLine(-1);
+    outroSpeechSequenceRef.current += 1;
+    const sequenceId = outroSpeechSequenceRef.current;
+
+    const playOutroLine = (index: number) => {
+      if (outroSpeechSequenceRef.current !== sequenceId) {
+        return;
+      }
+
+      if (index >= outroLines.length) {
+        setActiveOutroLine(-1);
+        const finishTimer = window.setTimeout(() => {
+          if (outroSpeechSequenceRef.current !== sequenceId) return;
+          setOutroStage("done");
+          if (interview && setup) {
+            const report = compileFinalReport(interview.turns, setup.resume, setup.job, setup.companySummary);
+            saveFinalReport(report);
+            startTransition(() => {
+              router.push("/results");
+            });
+          }
+        }, 1500);
+        outroTimersRef.current.push(finishTimer);
+        return;
+      }
+
+      const line = outroLines[index];
+      let settled = false;
+      setVisibleOutroLines(index + 1);
+      setActiveOutroLine(index);
+
+      const fallbackTimer = window.setTimeout(() => {
+        if (settled || outroSpeechSequenceRef.current !== sequenceId) return;
+        settled = true;
+        playOutroLine(index + 1);
+      }, estimateSpeechMs(line));
+      outroTimersRef.current.push(fallbackTimer);
+
+      speakRef.current(line, {
+        onStart: () => {
+          if (outroSpeechSequenceRef.current !== sequenceId) return;
+          setActiveOutroLine(index);
+        },
+        onComplete: () => {
+          if (settled || outroSpeechSequenceRef.current !== sequenceId) return;
+          settled = true;
+          window.setTimeout(() => playOutroLine(index + 1), 180);
+        },
+        onError: () => {
+          if (settled || outroSpeechSequenceRef.current !== sequenceId) return;
+          settled = true;
+          setActiveOutroLine(index);
+        },
+      });
+    };
+
+    playOutroLine(0);
+
+    return () => {
+      outroSpeechSequenceRef.current += 1;
+      outroTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+      outroTimersRef.current = [];
+    };
+  }, [outroStage, outroLines, interview, setup, router]);
 
   useEffect(() => {
     if (voiceError) {
@@ -426,11 +524,8 @@ export function InterviewScreen() {
     const nextIndex = interview.currentQuestionIndex + 1;
 
     if (nextIndex >= interview.targetQuestionCount) {
-      const report = compileFinalReport(interview.turns, setup.resume, setup.job, setup.companySummary);
-      saveFinalReport(report);
-      startTransition(() => {
-        router.push("/results");
-      });
+      setOutroStage("playing");
+      setPendingAdvance(false);
       return;
     }
 
@@ -498,16 +593,6 @@ export function InterviewScreen() {
     setPendingAdvance(true);
     stop();
     reset();
-
-    if (completed) {
-      const report = compileFinalReport(nextTurns, setup.resume, setup.job, setup.companySummary);
-      saveFinalReport(report);
-      window.setTimeout(() => {
-        startTransition(() => {
-          router.push("/results");
-        });
-      }, 900);
-    }
   }
 
   async function handleSpeakToggle() {
@@ -551,6 +636,9 @@ export function InterviewScreen() {
             resumeProjectSummary: interviewContext.resumeProjectSummary,
             resumeHighlights: interviewContext.resumeHighlights,
             resumeSkills: interviewContext.resumeSkills,
+            resumeEducation: interviewContext.resumeEducation,
+            resumeExperience: interviewContext.resumeExperience,
+            resumeProjects: interviewContext.resumeProjects,
             jobSummary: interviewContext.jobSummary,
             companySummary: setup.companySummary,
             requiredSkills: setup.job.requiredSkills,
@@ -674,7 +762,7 @@ export function InterviewScreen() {
   }
 
   const introView = (
-    <section className="mt-10">
+    <section className="mt-6">
       <div className="mx-auto flex min-h-[430px] max-w-4xl flex-col items-center justify-center px-4 text-center">
         <LiveAudioWaveform
           tone="coach"
@@ -705,27 +793,27 @@ export function InterviewScreen() {
   );
 
   const interviewView = (
-    <section className="animate-entrance relative mt-8 overflow-hidden rounded-[40px] border border-white bg-white/40 px-6 py-8 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.08)] ring-1 ring-slate-900/5 backdrop-blur-xl sm:px-10 sm:py-9 lg:px-12">
-      <div className="relative flex min-h-[390px] flex-col sm:min-h-[410px]">
-        <div className="flex h-12 items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-ink/60">
+    <section className="animate-entrance relative mx-auto mt-6 max-w-5xl overflow-hidden rounded-[45px] border border-white bg-white/40 px-6 py-6 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.08)] ring-1 ring-slate-900/5 backdrop-blur-xl sm:px-10 sm:py-7 lg:px-12">
+      <div className="relative flex min-h-[320px] flex-col sm:min-h-[340px]">
+        <div className="flex h-10 items-center justify-center">
+          <p className="text-[16px] font-semibold uppercase tracking-[0.2em] text-ink/60">
             {progressLabel}
           </p>
+        </div>
+
+        <div className="flex flex-1 flex-col items-center justify-center py-4">
           <LiveAudioWaveform
             tone="coach"
             active={speaking}
             mediaElement={activeAudioElement}
             activityLevel={browserSpeechLevel}
-            className="w-28 sm:w-32"
+            className="mb-4 w-20 sm:w-24"
           />
-        </div>
-
-        <div className="flex flex-1 items-center justify-center py-8">
           <div className="mx-auto w-full max-w-5xl text-center">
             <h2
-              key={currentQuestion.id}
+              key={`q-${currentQuestion.id}`}
               className={cn(
-                "font-semibold leading-[1.3] text-ink transition-all duration-300",
+                "animate-entrance font-semibold leading-[1.3] text-ink transition-all duration-300",
                 getQuestionTextSize(currentQuestion.prompt),
               )}
             >
@@ -734,7 +822,7 @@ export function InterviewScreen() {
           </div>
         </div>
 
-        <div className="flex min-h-[96px] items-end pt-4">
+        <div key={`tip-${currentQuestion.id}`} className="animate-entrance flex min-h-[80px] items-end pt-2 [animation-delay:150ms]">
           <div className="w-full rounded-[26px] border border-white/60 bg-white/18 px-5 py-4 backdrop-blur-md">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-ink/68">
               Coach tip
@@ -748,20 +836,53 @@ export function InterviewScreen() {
     </section>
   );
 
-  return (
-    <main className="min-h-screen bg-transparent px-6 py-6 sm:px-10 lg:px-14 xl:px-16">
-      <div className="mx-auto max-w-[82rem]">
-        <SiteHeader current="interview" />
-        {introActive ? introView : shouldShowQuestionPanel ? interviewView : null}
+  const outroView = (
+    <section className="animate-entrance mt-6">
+      <div className="mx-auto flex min-h-[430px] max-w-4xl flex-col items-center justify-center px-4 text-center">
+        <LiveAudioWaveform
+          tone="coach"
+          active={speaking}
+          mediaElement={activeAudioElement}
+          activityLevel={browserSpeechLevel}
+          className="mb-8 w-20 sm:w-24"
+        />
+        <div className="w-full max-w-4xl space-y-4">
+          {outroLines.map((line, index) => (
+            <p
+              key={line}
+              className={cn(
+                "text-xl leading-9 text-ink/82 transition-all duration-500 sm:text-[1.7rem] sm:leading-[1.9]",
+                visibleOutroLines > index
+                  ? activeOutroLine === index
+                    ? "translate-y-0 opacity-100"
+                    : "translate-y-0 opacity-74"
+                  : "translate-y-3 opacity-0",
+              )}
+            >
+              {line}
+            </p>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
 
-        <section className={cn("mt-6 transition-opacity duration-300", introActive ? "pointer-events-none opacity-0" : "opacity-100")}>
+  return (
+    <main className="relative mx-auto flex min-h-screen w-full max-w-[82rem] flex-col bg-transparent">
+      <div className="absolute left-6 right-6 top-10 z-50 sm:left-10 lg:left-14 lg:right-14 xl:left-16 xl:right-16">
+        <SiteHeader current="interview" />
+      </div>
+      <div className="mx-auto w-full max-w-[82rem] px-6 pb-6 pt-36 sm:px-10 lg:px-14 xl:px-16">
+        {introActive ? introView : outroStage !== "idle" ? outroView : shouldShowQuestionPanel ? interviewView : null}
+
+        <section className={cn("mt-4 transition-opacity duration-300", introActive || outroStage !== "idle" ? "pointer-events-none opacity-0" : "opacity-100")}>
           <div className="mx-auto grid min-h-[208px] max-w-xl grid-rows-[48px_72px_32px_28px] items-center justify-items-center">
             <div className="flex h-[56px] w-full items-center justify-center">
               <LiveAudioWaveform
                 tone="candidate"
                 active={listening}
                 mediaStream={userMicStream}
-                className="w-32 sm:w-40"
+                className="w-20 sm:w-24"
               />
             </div>
 

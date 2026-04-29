@@ -2,10 +2,10 @@ import type { ResumeData, ResumeSection } from "@/lib/types";
 import { extractBulletLikeLines, normalizeWhitespace, toTitleCase, unique } from "@/lib/utils";
 
 const SECTION_PATTERNS: Array<{ key: keyof Omit<ResumeData, "rawText" | "name" | "sections">; label: RegExp }> = [
-  { key: "education", label: /^(education|academic background)$/i },
-  { key: "experience", label: /^(experience|work experience|professional experience|employment)$/i },
-  { key: "projects", label: /^(projects|selected projects|project experience)$/i },
-  { key: "skills", label: /^(skills|technical skills|core skills|competencies)$/i },
+  { key: "education", label: /^(education|academic background)\s*[:—–\-]?\s*$/i },
+  { key: "experience", label: /^(experience|work experience|professional experience|employment)\s*[:—–\-]?\s*$/i },
+  { key: "projects", label: /^(projects|selected projects|project experience)\s*[:—–\-]?\s*$/i },
+  { key: "skills", label: /^(skills|technical skills|core skills|competencies)\s*[:—–\-]?\s*$/i },
 ];
 
 const CONTACT_PATTERN =

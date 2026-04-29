@@ -24,6 +24,9 @@ export type InterviewBrainState = {
   resumeProjectSummary: string;
   resumeHighlights?: string[];
   resumeSkills?: string[];
+  resumeEducation?: string[];
+  resumeExperience?: string[];
+  resumeProjects?: string[];
   jobSummary?: string;
   companySummary?: string;
   requiredSkills: string[];
@@ -38,13 +41,10 @@ export type InterviewBrainState = {
 };
 
 type InterviewStage =
-  | "motivation"
-  | "experience-overview"
-  | "project-deep-dive"
-  | "project-follow-up"
-  | "tradeoffs"
-  | "role-behavioral"
-  | "closing";
+  | "background"
+  | "resume-dive"
+  | "jd-skill"
+  | "company-fit";
 
 type AnswerReviewPayload = Pick<InterviewModelEvaluation, "evaluation" | "strengths" | "gaps">;
 type NextQuestionPayload = Pick<
@@ -53,13 +53,9 @@ type NextQuestionPayload = Pick<
 >;
 
 function inferStage(previousQuestionsCount: number): InterviewStage {
-  if (previousQuestionsCount === 0) return "motivation";
-  if (previousQuestionsCount === 1) return "experience-overview";
-  if (previousQuestionsCount === 2) return "project-deep-dive";
-  if (previousQuestionsCount === 3) return "project-follow-up";
-  if (previousQuestionsCount === 4) return "tradeoffs";
-  if (previousQuestionsCount === 5) return "role-behavioral";
-  return "closing";
+  if (previousQuestionsCount <= 1) return "resume-dive";
+  if (previousQuestionsCount === 2) return "jd-skill";
+  return "company-fit";
 }
 
 // Returns the first required skill not yet mentioned in coveredSkills.
@@ -70,7 +66,11 @@ function uncoveredSkill(state: InterviewBrainState): string {
 }
 
 function pickRelevantResumeHighlight(state: InterviewBrainState): string {
-  return state.resumeHighlights?.find(Boolean)?.trim() || "the most relevant project or experience from your background";
+  // Only pick from projects or experience — never education
+  const projects = state.resumeProjects || [];
+  const experience = state.resumeExperience || [];
+  const candidate = projects.find(Boolean)?.trim() || experience.find(Boolean)?.trim();
+  return candidate || "the most relevant project or experience from your background";
 }
 
 function normalizedCompanyReference(companyName?: string) {
@@ -182,22 +182,44 @@ function stageFallbackQuestion(stage: InterviewStage, state: InterviewBrainState
   const highlight = pickRelevantResumeHighlight(state).replace(/\s+/g, " ").trim();
 
   switch (stage) {
-    case "motivation":
+    case "background":
+      return "Tell me about yourself and what brings you to this role.";
+    case "resume-dive": {
+      // Only use projects or experience, never education
+      const projects = state.resumeProjects || [];
+      const experience = state.resumeExperience || [];
+      const previousQuestionsString = state.previousQuestions.join(" ").toLowerCase();
+      
+      const unusedProjects = projects.filter((p) => p && !previousQuestionsString.includes(p.toLowerCase().trim()));
+      const unusedExperience = experience.filter((e) => e && !previousQuestionsString.includes(e.toLowerCase().trim()));
+
+      const projectItem = unusedProjects[0]?.trim();
+      const experienceItem = unusedExperience[0]?.trim();
+      
+      if (projectItem) {
+        return `I saw ${projectItem} on your resume. Walk me through that project — what were you trying to build and what was your role?`;
+      }
+      if (experienceItem) {
+        return `I noticed ${experienceItem} on your resume. Tell me about your biggest accomplishment there.`;
+      }
+      return "Tell me about a project or experience you're most proud of.";
+    }
+    case "jd-skill": {
+      const skill = normalizeSkillLabel(uncoveredSkill(state));
+      const responsibilities = state.responsibilities || [];
+      const responsibility = responsibilities[0]?.replace(/\s+/g, " ").trim() || "";
+      if (responsibility && skill) {
+        return `This role involves ${responsibility.toLowerCase().slice(0, 80)}. Walk me through a time you used ${skill} in that kind of work.`;
+      }
+      if (skill && skill !== "role-fit") {
+        return `The job description highlights ${skill} as a key requirement. Walk me through a time you applied that skill.`;
+      }
+      return "What technical skill or experience from your background do you think is most relevant to this role?";
+    }
+    case "company-fit":
       return companyReference
-        ? `Why are you interested in this role at ${companyReference}?`
-        : "Why are you interested in this role?";
-    case "experience-overview":
-      return "Tell me about yourself.";
-    case "project-deep-dive":
-      return `I saw ${highlight} on your resume. Walk me through that project.`;
-    case "project-follow-up":
-      return "What was the hardest part of that project for you?";
-    case "tradeoffs":
-      return "What tradeoff or decision did you have to make on that project?";
-    case "role-behavioral":
-      return buildRoleBehavioralQuestion(state);
-    case "closing":
-      return "Before we wrap up, what would you want me to remember about you?";
+        ? `Why are you interested in working at ${companyReference} specifically, and what makes you a strong fit for this role?`
+        : "Why are you interested in this role, and what makes you a strong fit?";
   }
 }
 
@@ -209,80 +231,59 @@ function buildStageSystemPrompt(stage: InterviewStage): string {
     "Speak like a real interviewer talking to a candidate in a live interview. " +
     "Ask one concise, natural, conversational interview question. " +
     "Do NOT ask analytical or meta questions like 'what do you understand' or 'what are the most relevant aspects'. " +
-    "Do NOT use placeholders.";
+    "Do NOT use placeholders. " +
+    "CRITICAL: Do NOT ask any question that is semantically similar to the questions in the 'already_asked' list.";
   const coachTipRule =
-    "coach_tip must be a short candidate-facing tip for answering THIS exact question well. " +
-    "It should explain the answer approach or what to emphasize, not leak internal reasoning and not reduce the advice to naming one technology unless the question is specifically about that technology. " +
-    "Write it like a helpful interview coach, in one sentence.";
+    "coach_tip must be 1-2 short sentences (max 30 words) helping the candidate answer THIS question. Be specific, not generic.";
 
   switch (stage) {
-    case "motivation":
+    case "background":
       return (
         `You are a professional interviewer. ${jsonShape} ` +
         `${interviewerRule} ` +
         `${coachTipRule} ` +
-        "follow_up_question must be a MOTIVATION question. " +
-        "Use the company and role fields from the context — do NOT use placeholders like [Company Name]. " +
-        "Ask why the candidate wants this specific role. " +
+        "follow_up_question must be a generic INTRODUCTION question. " +
+        "Ask about the candidate's background and what brings them to this role. " +
+        "Do NOT reference specific resume items. Keep it open-ended. " +
         "One concise, direct sentence."
       );
 
-    case "experience-overview":
+    case "resume-dive":
       return (
         `You are a professional interviewer. ${jsonShape} ` +
         `${interviewerRule} ` +
         `${coachTipRule} ` +
-        "follow_up_question must ask for a simple overview of the candidate's background. " +
-        "Do not turn it into an analysis prompt. One concise direct sentence."
+        "follow_up_question must choose ONE specific project or work experience from the candidate's resume and ask for a deep walkthrough. " +
+        "IMPORTANT: Only reference items from 'resume_projects' or 'resume_experience'. " +
+        "NEVER reference items from 'resume_education' — those are degrees/schools, NOT projects. " +
+        "CRITICAL: Do NOT ask about any project or experience that is already mentioned in the 'already_asked' list. Pick a NEW one. " +
+        "Mention the project or experience BY NAME in the question. " +
+        "Ask what they built, their role, or their biggest accomplishment. " +
+        "One natural, conversational question."
       );
 
-    case "project-deep-dive":
+    case "jd-skill":
       return (
         `You are a professional interviewer. ${jsonShape} ` +
         `${interviewerRule} ` +
         `${coachTipRule} ` +
-        "follow_up_question must choose ONE specific project or technical example from the resume and ask for a deep walkthrough. " +
-        "Use resume_highlights to choose the best project. Ask about it in a natural way. " +
-        "Do NOT use generic fit wording."
+        "follow_up_question must ask about a SPECIFIC SKILL or responsibility from the job description. " +
+        "Pick one skill from 'required_skills' or one item from 'responsibilities' and ask how the candidate has applied it. " +
+        "Connect it to something from their resume if possible. " +
+        "CRITICAL: Do NOT reference any project or experience that was already mentioned in the 'already_asked' questions. " +
+        "Ask for a concrete example or walkthrough. " +
+        "One natural, conversational question."
       );
 
-    case "project-follow-up":
+    case "company-fit":
       return (
         `You are a professional interviewer. ${jsonShape} ` +
         `${interviewerRule} ` +
         `${coachTipRule} ` +
-        "The candidate just described a project. follow_up_question must ask one focused follow-up on that same project. " +
-        "Probe missing depth such as challenge, ownership boundary, decision-making, metrics, or implementation details. " +
-        "Do NOT switch to a new topic."
-      );
-
-    case "tradeoffs":
-      return (
-        `You are a professional interviewer. ${jsonShape} ` +
-        `${interviewerRule} ` +
-        `${coachTipRule} ` +
-        "follow_up_question must ask about tradeoffs, technical decisions, collaboration, metrics, stakeholder communication, or outcomes. " +
-        "Keep it tied to the project or experience already under discussion."
-      );
-
-    case "role-behavioral":
-      return (
-        `You are a professional interviewer. ${jsonShape} ` +
-        `${interviewerRule} ` +
-        `${coachTipRule} ` +
-        "follow_up_question must be a role-specific or behavioral question tied to the actual job. " +
-        'If behavioral, it may start with "Tell me about a time when". ' +
-        "Use uncovered required skills, responsibilities, or working style expectations from the posting. " +
-        "Do not repeat already_asked questions."
-      );
-
-    case "closing":
-      return (
-        `You are a professional interviewer. ${jsonShape} ` +
-        `${interviewerRule} ` +
-        `${coachTipRule} ` +
-        "follow_up_question should invite the candidate to make their strongest final case or " +
-        "reflect on the conversation. Keep it brief and warm."
+        "follow_up_question must ask about COMPANY FIT and MOTIVATION. " +
+        "Ask why the candidate is interested in this specific company and/or role, and what makes them a strong fit. " +
+        "Use the company name from context — do NOT use placeholders. " +
+        "One concise, direct sentence."
       );
   }
 }
@@ -297,15 +298,16 @@ async function generateCoachTip(
     const output = await provider.generateJson<{ coach_tip?: string }>({
       systemPrompt:
         'Return ONLY strict JSON: {"coach_tip": string}. ' +
-        "You are a supportive interview coach. Write one short, natural tip that helps the candidate answer the exact interview question well. " +
-        "Focus on what to emphasize or how to structure the answer for this specific question. " +
-        "Do NOT leak internal reasoning, and do NOT reduce the tip to naming a random skill or technology unless the question is directly about it.",
+        "You are a supportive interview coach. " +
+        "Write a very brief tip (1-2 SHORT sentences, max 30 words) to help the candidate answer the interview question below. " +
+        "Be specific to this question. Do NOT give generic advice.",
       userPrompt: JSON.stringify({
+        the_interview_question: question,
         stage,
         role: state.role,
         company: normalizedCompanyReference(state.companyName) || "",
-        question,
-        resume_highlights: (state.resumeHighlights || []).slice(0, 3),
+        resume_projects: (state.resumeProjects || []).slice(0, 3),
+        resume_experience: (state.resumeExperience || []).slice(0, 3),
         required_skills: state.requiredSkills.slice(0, 5),
       }),
     });
@@ -318,23 +320,26 @@ async function generateCoachTip(
 
 function buildAnswerReviewSystemPrompt() {
   return (
-    'Return ONLY strict JSON: {"evaluation": string}. ' +
-    "You are a supportive interview coach reviewing ONE candidate answer. " +
-    "Analyze the answer and provide feedback that identifies ONE specific strength and ONE concrete improvement. " +
-    "Use an encouraging, constructive tone. " +
+    'Return ONLY strict JSON: {"evaluation": string, "strengths": string[], "gaps": string[]}. ' +
+    "You are a supportive interview coach reviewing ONE candidate answer to a specific interview question. " +
+    "You MUST provide PERSONALIZED feedback based on the EXACT content of the candidate's answer. " +
+    "Reference specific things the candidate said or failed to say. " +
+    "NEVER give generic feedback like 'You gave a direct answer'. " +
 
-    "Format the evaluation exactly like this: " +
-    'Strength: [positive observation]\nImprovement: [specific suggestion with an example]. ' +
+    "Format the 'evaluation' field exactly like this: " +
+    'Strength: [one specific thing the candidate did well in THIS answer, referencing what they said]\n' +
+    'Improvement: [one specific suggestion for how to improve THIS answer, with a concrete example]. ' +
+
+    "Also extract 1-2 very short bullet points for 'strengths' and 1-2 for 'gaps' based on the answer. " +
+    "These must also be specific to THIS answer, not generic advice. " +
 
     "RULES: " +
-    "- Keep each section to 2-3 sentences maximum. " +
-    "- Base the feedback on the actual answer, question, and resume context. " +
-    "- Focus only on answer quality: clarity, specificity, structure, relevance, completeness, and confidence. " +
-    "- Do NOT judge overall job fit or qualifications. " +
-    "- Do NOT quote long chunks of the answer. " +
-    "- Avoid generic wording that could apply to any answer. " +
-    "- The improvement must include a practical example of how to answer better next time. " +
-    "- If no real strength stands out, say that gently but honestly."
+    "- The feedback MUST reference the actual content of the answer. If they mentioned a project, name it. If they gave a metric, reference it. " +
+    "- Keep the Improvement section brief (1-2 sentences) and encouraging. " +
+    "- Be forgiving. If they convey the general idea or mention relevant experience, praise them. " +
+    "- Focus on answer quality: clarity, specificity, structure, and relevance to the question. " +
+    "- Do NOT give the same feedback for different answers. Each answer deserves unique feedback. " +
+    "- Do NOT use placeholder phrases like 'your answer' or 'the candidate'. Be specific."
   );
 }
 
@@ -355,8 +360,28 @@ function normalizeQuestionSpacing(question: string) {
   return question.replace(/\s+/g, " ").trim();
 }
 
-function questionLooksAwkward(question: string) {
+function questionLooksAwkward(question: string, state?: InterviewBrainState) {
   const lower = question.toLowerCase();
+
+  // Catch raw label leaks (LLM parroting section headers)
+  if (/\b(education|education:|work experience:|projects:|skills:)\b.*\bwalk me through\b/i.test(question)) {
+    return true;
+  }
+
+  // Catch education items being treated as projects
+  const educationEntries = state?.resumeEducation || [];
+  for (const edu of educationEntries) {
+    const eduLower = edu.toLowerCase().trim();
+    if (eduLower && lower.includes(eduLower) && /\b(project|walk me through|tell me about)\b/i.test(lower)) {
+      return true;
+    }
+  }
+
+  // Catch university/degree names being called "project"
+  if (/\b(university|college|b\.?[as]\.?|m\.?[as]\.?|ph\.?d|bachelor|master|degree)\b/i.test(lower) &&
+      /\b(project|walk me through that project)\b/i.test(lower)) {
+    return true;
+  }
 
   return (
     /\bhad to (sql|react|typescript|javascript|python|java|c\+\+|git|aws|docker|kubernetes)\b/i.test(question) ||
@@ -374,7 +399,7 @@ function ensureQuestionQuality(rawQuestion: string, stage: InterviewStage, state
     return stageFallbackQuestion(stage, state);
   }
 
-  if (questionLooksAwkward(normalized)) {
+  if (questionLooksAwkward(normalized, state)) {
     return stageFallbackQuestion(stage, state);
   }
 
@@ -399,7 +424,6 @@ async function polishQuestion(
         stage,
         role: state.role,
         company: normalizedCompanyReference(state.companyName) || "",
-        resume_highlight: pickRelevantResumeHighlight(state),
         original_question: question,
       }),
     });
@@ -411,20 +435,19 @@ async function polishQuestion(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Opening question — always static, no LLM.
-// A reliable, role-aware intro prompt that starts every interview cleanly.
+// Opening question — Q1: Background/Introduction (generic, not resume-specific)
 // ─────────────────────────────────────────────────────────────────────────────
 export async function generateOpeningQuestion(state: InterviewBrainState) {
   const provider = getLlmProvider();
-  const baseQuestion = "Tell me about yourself.";
-  const question = await polishQuestion(provider, baseQuestion, "motivation", state);
-  const coachTip = await generateCoachTip(provider, question, "motivation", state);
+  const baseQuestion = "Tell me about yourself and what brings you to this role.";
+  const question = await polishQuestion(provider, baseQuestion, "background", state);
+  const coachTip = await generateCoachTip(provider, question, "background", state);
 
   return {
     question,
     coach_tip: coachTip,
     whyThisQuestion:
-      "Starts with a natural warm-up so the candidate can frame their story before the interview narrows into role fit and project depth.",
+      "Opens with a natural introduction so the candidate can frame their background and motivation.",
     nextSkillToProbe:
       state.requiredSkills[0] || state.keywords[0] || "role-fit",
   };
@@ -481,24 +504,25 @@ export async function evaluateInterviewTurn(
   state: InterviewBrainState,
 ): Promise<InterviewModelEvaluation> {
   const provider = getLlmProvider();
-  const stage = inferStage(state.previousQuestions.length);
-  const questionSystemPrompt = buildStageSystemPrompt(stage);
-  const answerReviewSystemPrompt = buildAnswerReviewSystemPrompt();
-  const skill = uncoveredSkill(state);
-
-  // Include the current question in the "already asked" list so the model avoids it.
   const allAskedQuestions = [
     ...state.previousQuestions,
     state.latestQuestion || "",
   ].filter(Boolean);
+
+  const stage = inferStage(allAskedQuestions.length);
+  const questionSystemPrompt = buildStageSystemPrompt(stage);
+  const answerReviewSystemPrompt = buildAnswerReviewSystemPrompt();
+  const skill = uncoveredSkill(state);
 
   const userPrompt = JSON.stringify({
     candidate_name: state.candidateName,
     role: state.role,
     company: state.companyName?.trim() || "the company",
     seniority: state.seniority,
-    resume_summary: state.resumeProjectSummary.slice(0, 350),
-    resume_highlights: (state.resumeHighlights || []).slice(0, 4),
+    resume_summary: state.resumeProjectSummary.slice(0, 500),
+    resume_education: (state.resumeEducation || []).slice(0, 4),
+    resume_experience: (state.resumeExperience || []).slice(0, 4),
+    resume_projects: (state.resumeProjects || []).slice(0, 4),
     resume_skills: (state.resumeSkills || []).slice(0, 10),
     job_summary: (state.jobSummary || "").slice(0, 350),
     required_skills: state.requiredSkills.slice(0, 4),
@@ -527,61 +551,100 @@ export async function evaluateInterviewTurn(
     next_skill_to_probe: skill,
   };
 
+  let answerReviewOutput: Partial<AnswerReviewPayload> = {};
   try {
-    const answerReviewOutput = await provider.generateJson<AnswerReviewPayload>({
-      systemPrompt: answerReviewSystemPrompt,
-      userPrompt: JSON.stringify({
-        question: state.latestQuestion || "",
-        answer: (state.latestAnswer || "").slice(0, 700),
-        resume_excerpt: state.resumeProjectSummary.slice(0, 350),
-      }),
+    const answerReviewUserPrompt = JSON.stringify({
+      interview_question: state.latestQuestion || "",
+      candidate_answer: (state.latestAnswer || "").slice(0, 800),
+      role: state.role,
+      company: state.companyName?.trim() || "",
     });
+    console.log("[answer-review] Sending prompt to LLM...");
+    answerReviewOutput = await provider.generateJson<AnswerReviewPayload>({
+      systemPrompt: answerReviewSystemPrompt,
+      userPrompt: answerReviewUserPrompt,
+    });
+    console.log("[answer-review] LLM response:", JSON.stringify(answerReviewOutput).slice(0, 300));
+  } catch (error) {
+    console.error("[answer-review] Failed to generate answer review:", error);
+  }
 
-    const questionOutput = await provider.generateJson<NextQuestionPayload>({
+  let questionOutput: Partial<NextQuestionPayload> = {};
+  try {
+    console.log("[next-question] Sending prompt to LLM...");
+    questionOutput = await provider.generateJson<NextQuestionPayload>({
       systemPrompt: questionSystemPrompt,
       userPrompt,
     });
+    console.log("[next-question] LLM response:", JSON.stringify(questionOutput).slice(0, 300));
+  } catch (error) {
+    console.error("[next-question] Failed to generate next question:", error);
+  }
 
-    const rawFollowUp = sanitizeText(questionOutput.follow_up_question, "");
+  const rawFollowUp = sanitizeText(questionOutput.follow_up_question, "");
 
-    // Anti-repetition: if the model generated something too close to a prior question,
-    // fall back to the stage-appropriate question instead.
-    const candidateQuestion =
-      rawFollowUp &&
-        !isTooSimilar(rawFollowUp, allAskedQuestions) &&
-        !conflictsWithRecentAngle(rawFollowUp, allAskedQuestions)
-        ? ensureQuestionQuality(rawFollowUp, stage, state)
-        : stageFallbackQuestion(stage, state);
-    const followUpQuestion = await polishQuestion(provider, candidateQuestion, stage, state);
-    const coachTip = sanitizeText(
-      questionOutput.coach_tip,
-      await generateCoachTip(provider, followUpQuestion, stage, state),
-    );
+  // Anti-repetition: if the model generated something too close to a prior question,
+  // fall back to the stage-appropriate question instead.
+  const candidateQuestion =
+    rawFollowUp &&
+      !isTooSimilar(rawFollowUp, allAskedQuestions) &&
+      !conflictsWithRecentAngle(rawFollowUp, allAskedQuestions)
+      ? ensureQuestionQuality(rawFollowUp, stage, state)
+      : stageFallbackQuestion(stage, state);
 
-    const strengths = sanitizeList(answerReviewOutput.strengths);
-    const gaps = sanitizeList(answerReviewOutput.gaps);
-    const evaluation = normalizeFeedbackBlock(
-      sanitizeText(answerReviewOutput.evaluation, defaultAnswerReview.evaluation),
-      defaultAnswerReview.evaluation,
-    );
+  const followUpQuestion = await polishQuestion(provider, candidateQuestion, stage, state);
+  const coachTip = sanitizeText(
+    questionOutput.coach_tip,
+    await generateCoachTip(provider, followUpQuestion, stage, state),
+  );
 
-    return {
-      evaluation,
-      strengths: strengths.length ? strengths : defaultAnswerReview.strengths,
-      gaps: gaps.length ? gaps : defaultAnswerReview.gaps,
-      follow_up_question: followUpQuestion,
-      coach_tip: coachTip,
-      why_this_follow_up: sanitizeText(
-        questionOutput.why_this_follow_up,
-        defaultQuestionPlan.why_this_follow_up,
-      ),
-      next_skill_to_probe: sanitizeText(questionOutput.next_skill_to_probe, skill),
-    };
+  const strengths = sanitizeList(answerReviewOutput.strengths);
+  const gaps = sanitizeList(answerReviewOutput.gaps);
+  const evaluation = normalizeFeedbackBlock(
+    sanitizeText(answerReviewOutput.evaluation, defaultAnswerReview.evaluation),
+    defaultAnswerReview.evaluation,
+  );
+
+  return {
+    evaluation,
+    strengths: strengths.length ? strengths : defaultAnswerReview.strengths,
+    gaps: gaps.length ? gaps : defaultAnswerReview.gaps,
+    follow_up_question: followUpQuestion,
+    coach_tip: coachTip,
+    why_this_follow_up: sanitizeText(
+      questionOutput.why_this_follow_up,
+      defaultQuestionPlan.why_this_follow_up,
+    ),
+    next_skill_to_probe: sanitizeText(questionOutput.next_skill_to_probe, skill),
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Final interview summary generation.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function generateInterviewSummary(state: InterviewBrainState): Promise<string> {
+  const provider = getLlmProvider();
+  
+  const systemPrompt = 
+    'Return ONLY strict JSON: {"summary": string}. ' +
+    'You are a supportive interview coach giving a final post-interview summary. ' +
+    'Write a single 2-3 sentence paragraph summarizing how the candidate performed overall based on their answers, strengths, and areas for improvement. ' +
+    'Keep the tone encouraging, objective, and professional. ' +
+    'Do NOT give a score, just the paragraph summary.';
+
+  const userPrompt = JSON.stringify({
+    role: state.role,
+    questions: state.previousQuestions,
+    answers: state.previousAnswers,
+  });
+
+  try {
+    const output = await provider.generateJson<{ summary?: string }>({
+      systemPrompt,
+      userPrompt,
+    });
+    return String(output.summary || "").trim() || "The interview showed a solid foundation, though there's room to add more concrete examples to your answers.";
   } catch {
-    return {
-      ...defaultAnswerReview,
-      ...defaultQuestionPlan,
-      follow_up_question: stageFallbackQuestion(stage, state),
-    };
+    return "The interview showed a solid foundation, though there's room to add more concrete examples to your answers.";
   }
 }

@@ -4,7 +4,7 @@ export type JsonChatInput = {
 };
 
 export interface LlmProvider {
-  readonly providerName: "ollama" | "hosted";
+  readonly providerName: "ollama" | "hosted" | "groq";
   generateJson<T>(input: JsonChatInput): Promise<T>;
 }
 

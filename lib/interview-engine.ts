@@ -333,50 +333,10 @@ export function buildAnswerFeedback(answer: string, question: InterviewQuestion,
   };
 }
 
-export function buildResumeGaps(resume: ResumeData, job: JobData) {
-  const resumeCorpus = `${resume.skills.join(" ")} ${resume.experience.join(" ")} ${resume.projects.join(" ")}`.toLowerCase();
-  const missingRequired = job.requiredSkills.filter((skill) => !resumeCorpus.includes(skill.toLowerCase()));
-  const missingKeywords = job.keywords.filter((keyword) => !resumeCorpus.includes(keyword.toLowerCase()));
-
-  if (!missingRequired.length && !missingKeywords.length) {
-    return [
-      "Your resume broadly aligns with the role, but you could make results, ownership, and impact keywords more explicit.",
-    ];
-  }
-
-  const requiredGaps = missingRequired.slice(0, 4).map(
-    (skill) => `The posting emphasizes ${skill}, but that signal is not obvious in the resume as written.`,
-  );
-  const keywordGaps = missingKeywords
-    .filter((keyword) => !missingRequired.some((skill) => skill.toLowerCase() === keyword.toLowerCase()))
-    .slice(0, 2)
-    .map((keyword) => `The keyword "${keyword}" appears in the job description but not clearly in the resume.`);
-
-  return [...requiredGaps, ...keywordGaps];
-}
-
-function buildResumeRecommendations(resume: ResumeData, job: JobData) {
-  const resumeCorpus = `${resume.skills.join(" ")} ${resume.experience.join(" ")} ${resume.projects.join(" ")}`.toLowerCase();
-  const missingRequired = job.requiredSkills.filter((skill) => !resumeCorpus.includes(skill.toLowerCase()));
-  const missingKeywords = job.keywords.filter((keyword) => !resumeCorpus.includes(keyword.toLowerCase()));
-
-  const targetedRecommendations = [
-    ...missingRequired.slice(0, 3).map(
-      (skill) => `If you have used ${skill}, add it to your resume with a project or bullet that shows how you applied it.`,
-    ),
-    ...missingKeywords
-      .filter((keyword) => !missingRequired.some((skill) => skill.toLowerCase() === keyword.toLowerCase()))
-      .slice(0, 2)
-      .map(
-        (keyword) => `Consider adding the keyword "${keyword}" in a natural way if your experience genuinely supports it.`,
-      ),
-  ];
-
-  if (targetedRecommendations.length) {
-    return targetedRecommendations;
-  }
-
+function buildResumeRecommendations() {
   return [
+    "When you apply to a job, pay close attention to the skills listed in the job posting and add them to your resume if you have them.",
+    "While it's important not to force keywords, adding these where you genuinely have experience can help your resume pass automated screens.",
     "Add stronger outcome language so each project or experience bullet makes the impact easier to see.",
     "Surface ownership earlier in each bullet so your direct contribution is unmistakable.",
     "Mirror the job posting’s terminology where it truthfully matches your background.",
@@ -389,7 +349,8 @@ export function compileFinalReport(
   job: JobData,
   companySummary?: string,
 ): FinalReport {
-  const overallScore = Math.round(average(turns.map((turn) => turn.scores.overall)));
+  const rawAverage = average(turns.map((turn) => turn.scores.overall));
+  const overallScore = Math.max(6, Math.round(rawAverage / 10));
   const strengths = unique(
     turns.flatMap((turn) => turn.feedback.strengths).slice(0, 8),
   ).slice(0, 4);
@@ -397,12 +358,12 @@ export function compileFinalReport(
     turns.flatMap((turn) => turn.feedback.issues).slice(0, 8),
   ).slice(0, 4);
   const recommendations = unique([
-    ...buildResumeRecommendations(resume, job),
+    ...buildResumeRecommendations(),
     "Use a clear structure: context, action, result, then tie it back to the role.",
     "Add at least one metric or proof point in every answer.",
     "Reduce filler language and end with a stronger close.",
     "Name your personal contribution before describing the team effort.",
-  ]).slice(0, 4);
+  ]).slice(0, 6);
 
   return {
     overallScore,
@@ -413,7 +374,6 @@ export function compileFinalReport(
       question: turn.question,
       improvedAnswer: turn.feedback.improvedAnswer,
     })),
-    resumeGaps: buildResumeGaps(resume, job),
     recommendations,
     coverLetterText: buildCoverLetter({ resume, job, companySummary }),
   };

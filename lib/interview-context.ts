@@ -31,18 +31,20 @@ function cleanProjectEntry(entry: string) {
 }
 
 function buildResumeProjectSummary(resume: ResumeData) {
-  const experienceHighlights = resume.experience.slice(0, 3).join(" | ");
-  const projectHighlights = resume.projects.slice(0, 2).map(cleanProjectEntry).join(" | ");
-  const skills = resume.skills.slice(0, 8).join(", ");
+  const education = resume.education.slice(0, 3).map(cleanProjectEntry);
+  const experience = resume.experience.slice(0, 3).map(cleanProjectEntry);
+  const projects = resume.projects.slice(0, 3).map(cleanProjectEntry);
+  const skills = resume.skills.slice(0, 8);
 
   return [
     `Candidate: ${resume.name}.`,
-    experienceHighlights ? `Experience highlights: ${experienceHighlights}.` : "",
-    projectHighlights ? `Project highlights: ${projectHighlights}.` : "",
-    skills ? `Top skills: ${skills}.` : "",
+    education.length ? `Education (degrees, NOT projects): ${education.join(" | ")}.` : "",
+    experience.length ? `Work experience: ${experience.join(" | ")}.` : "",
+    projects.length ? `Projects (can be asked about as projects): ${projects.join(" | ")}.` : "",
+    skills.length ? `Top skills: ${skills.join(", ")}.` : "",
   ]
     .filter(Boolean)
-    .join(" ");
+    .join("\n");
 }
 
 export function buildInterviewContext(resume: ResumeData, job: JobData, candidateName: string) {
@@ -56,6 +58,11 @@ export function buildInterviewContext(resume: ResumeData, job: JobData, candidat
     .filter(Boolean)
     .join(" ");
 
+  // Only actual projects go into resumeHighlights now — never education
+  const projectHighlights = resume.projects.map(cleanProjectEntry).slice(0, 5);
+  const experienceHighlights = resume.experience.map(cleanProjectEntry).slice(0, 5);
+  const highlights = [...projectHighlights, ...experienceHighlights].slice(0, 5);
+
   return {
     candidateName: candidateName.trim() || resume.name,
     role: job.roleTitle || "Target Role",
@@ -64,8 +71,11 @@ export function buildInterviewContext(resume: ResumeData, job: JobData, candidat
     seniority: inferSeniority(job.roleTitle, job.rawText),
     interviewType: "mixed behavioral and role-fit",
     resumeProjectSummary: buildResumeProjectSummary(resume),
-    resumeHighlights: resume.highlights.map(cleanProjectEntry).slice(0, 5),
+    resumeHighlights: highlights,
     resumeSkills: resume.skills.slice(0, 12),
+    resumeEducation: resume.education.map(cleanProjectEntry).slice(0, 5),
+    resumeExperience: experienceHighlights,
+    resumeProjects: projectHighlights,
     jobSummary,
   };
 }
