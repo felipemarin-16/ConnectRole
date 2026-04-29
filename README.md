@@ -1,9 +1,9 @@
-# RoleReady — AI Mock Interview Coach
+# ConnectRole — AI Mock Interview Coach
 
-RoleReady is a premium, high-fidelity mock interview platform designed to help candidates practice for specific roles using their own background and target job descriptions. Built with **Next.js**, **Tailwind CSS**, and **TypeScript**, it leverages advanced LLMs to provide a realistic, adaptive, and supportive interview experience.
+ConnectRole is a premium, high-fidelity mock interview platform designed to help candidates practice for specific roles using their own background and target job descriptions. Built with **Next.js**, **Tailwind CSS**, and **TypeScript**, it leverages advanced LLMs to provide a realistic, adaptive, and supportive interview experience.
 
-![RoleReady Screenshot 1](./public/RoleReady_1.png)
-![RoleReady Screenshot 2](./public/RoleReady_2.png)
+![ConnectRole Screenshot 1](./public/ConnectRole_1.png)
+![ConnectRole Screenshot 2](./public/ConnectRole_2.png)
 
 ## ✨ Key Features
 
@@ -30,8 +30,8 @@ RoleReady is a premium, high-fidelity mock interview platform designed to help c
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/felipemarin-16/RoleReady.git
-   cd RoleReady
+   git clone https://github.com/felipemarin-16/ConnectRole.git
+   cd ConnectRole
    ```
 
 2. **Install dependencies**:

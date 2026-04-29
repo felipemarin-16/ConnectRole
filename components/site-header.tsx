@@ -16,7 +16,7 @@ export function SiteHeader({ current = "home" }: SiteHeaderProps) {
   return (
     <header className="flex items-center justify-between gap-4 py-5 lg:py-6">
       <Link href="/" className="shrink-0 group flex flex-col items-start transition-opacity hover:opacity-80">
-        <span className="font-display text-[2.5rem] font-semibold leading-none text-ink sm:text-[3rem]">RoleReady</span>
+        <span className="font-display text-[2.5rem] font-semibold leading-none text-ink sm:text-[3rem]">ConnectRole</span>
         <div className="mt-1.5 flex w-full justify-between text-[9px] font-bold uppercase tracking-normal text-slate/70 sm:text-[10px]">
           {"Mock Interview Coach".split("").map((char, i) => (
             <span key={i}>{char === " " ? "\u00A0" : char}</span>

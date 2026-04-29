@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { SiteHeader } from "@/components/site-header";
 import { Shell } from "@/components/shell";
 import { compileFinalReport } from "@/lib/interview-engine";
-import { clearRoleReadySession, getFinalReport, getInterviewSession, getSetupSession, saveFinalReport } from "@/lib/session";
+import { clearConnectRoleSession, getFinalReport, getInterviewSession, getSetupSession, saveFinalReport } from "@/lib/session";
 import type { FinalReport, InterviewSession, InterviewTurn, SetupSession } from "@/lib/types";
 
 type ResultsPhase = "walkthrough" | "summary";
@@ -254,7 +254,7 @@ export function ResultsScreen() {
       <Shell
         badge="Results"
         title="Your interview results will appear here."
-        subtitle="Complete a session first so RoleReady can generate feedback, transcript review, and the cover letter draft."
+        subtitle="Complete a session first so ConnectRole can generate feedback, transcript review, and the cover letter draft."
         current="results"
       >
         <div className="panel p-6">
@@ -438,7 +438,7 @@ export function ResultsScreen() {
             type="button"
             className="h-14 px-12 bg-white text-ink border border-ink/20 hover:bg-ink hover:text-white active:bg-ink active:text-white active:shadow-[0_0_20px_rgba(0,0,0,0.15)] transition-all duration-200 rounded-full text-base font-bold shadow-sm"
             onClick={() => {
-              clearRoleReadySession();
+              clearConnectRoleSession();
               router.push("/");
             }}
           >

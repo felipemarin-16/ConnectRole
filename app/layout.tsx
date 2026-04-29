@@ -14,7 +14,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "RoleReady",
+  title: "ConnectRole",
   description: "A polished mock interview coach for tailored interview prep.",
 };
 

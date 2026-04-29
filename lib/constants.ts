@@ -1,7 +1,7 @@
 export const STORAGE_KEYS = {
-  setup: "roleready:setup",
-  interview: "roleready:interview",
-  report: "roleready:report",
+  setup: "connectrole:setup",
+  interview: "connectrole:interview",
+  report: "connectrole:report",
 } as const;
 
 export const COMMON_SKILLS = [

@@ -746,7 +746,7 @@ export function InterviewScreen() {
   if (!setup || !interview || !currentQuestion) {
     return (
       <Shell
-        badge="RoleReady"
+        badge="ConnectRole"
         title="Interview session not found."
         subtitle="Set up a session first so the app can tailor the questions and report."
         current="interview"

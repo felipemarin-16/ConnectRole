@@ -5,7 +5,7 @@ export function SiteFooter() {
     <footer className="w-full border-t border-ink/10 bg-[linear-gradient(180deg,rgba(255,255,255,0),rgba(246,242,255,0.4))] py-12 text-center sm:py-16">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
         <p className="font-display text-lg font-semibold text-ink">
-          RoleReady — AI Mock Interview Coach
+          ConnectRole — AI Mock Interview Coach
         </p>
         <p className="mt-2 text-sm text-slate/80">Built by Felipe Marin © 2026</p>
 

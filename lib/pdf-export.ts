@@ -12,7 +12,7 @@ export function downloadCoverLetterPdf(candidateName: string, coverLetterText: s
   doc.setTextColor(14, 23, 38);
   doc.setFont("times", "bold");
   doc.setFontSize(22);
-  doc.text("RoleReady Cover Letter", 54, 64);
+  doc.text("ConnectRole Cover Letter", 54, 64);
 
   doc.setFont("times", "normal");
   doc.setFontSize(12);

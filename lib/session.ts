@@ -54,7 +54,7 @@ export function getFinalReport() {
   return raw ? (JSON.parse(raw) as FinalReport) : null;
 }
 
-export function clearRoleReadySession() {
+export function clearConnectRoleSession() {
   if (!canUseStorage()) {
     return;
   }

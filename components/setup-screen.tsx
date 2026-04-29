@@ -24,7 +24,7 @@ FNDR - Privacy-First Local AI Assistant for macOS (2026-Present)
 Built a local-first AI assistant that helps users retrieve past context from screenshots and notes.
 Designed retrieval flows for memory search and fast follow-up prompts.
 
-RoleReady - Mock Interview Coach (2026)
+ConnectRole - Mock Interview Coach (2026)
 Built a Next.js + TypeScript prototype for voice-based mock interviews with transcript scoring.
 
 Skills
@@ -229,14 +229,14 @@ const EXPLANATION_SECTIONS: Array<{
     {
       kind: "practice",
       eyebrow: "Start privately",
-      title: "Practice with RoleReady first to get comfortable before speaking with a real interviewer.",
+      title: "Practice with ConnectRole first to get comfortable before speaking with a real interviewer.",
       description:
         "Use your resume and the role you care about to rehearse out loud in a lower-pressure setting before the real conversation starts.",
     },
     {
       kind: "feedback",
       eyebrow: "See what landed",
-      title: "RoleReady will analyze your answers and give you clear feedback.",
+      title: "ConnectRole will analyze your answers and give you clear feedback.",
       description:
         "Each answer is reviewed for clarity, specificity, structure, and completeness so you know what to tighten for the next round.",
     },
@@ -689,7 +689,7 @@ export function SetupScreen() {
     input.onPhaseChange?.("ready");
     await new Promise((r) => setTimeout(r, 300));
 
-    console.groupCollapsed("RoleReady setup debug");
+    console.groupCollapsed("ConnectRole setup debug");
     console.info("Parsed resume", resume);
     console.info("Parsed job", job);
     console.info("Interview context", context);
@@ -728,7 +728,7 @@ export function SetupScreen() {
     }
 
     if (!jobPosting.trim()) {
-      setError("Paste a job posting so RoleReady can tailor the questions.");
+      setError("Paste a job posting so ConnectRole can tailor the questions.");
       return;
     }
 
@@ -1010,7 +1010,7 @@ export function SetupScreen() {
               </Reveal>
               <Reveal delay={240}>
                 <p className="mt-5 text-base leading-relaxed text-slate sm:text-lg">
-                  To get started, enter your name, upload your resume, and copy/paste the job description. RoleReady will then build a personalized interview experience tailored to your unique background and the role you're targeting.
+                  To get started, enter your name, upload your resume, and copy/paste the job description. ConnectRole will then build a personalized interview experience tailored to your unique background and the role you're targeting.
                 </p>
               </Reveal>
 
@@ -1074,7 +1074,7 @@ export function SetupScreen() {
                     {step === 0
                       ? "This is how the interviewer will address you."
                       : step === 1
-                        ? "A PDF resume lets RoleReady tailor the questions to your experience."
+                        ? "A PDF resume lets ConnectRole tailor the questions to your experience."
                         : step === 2
                           ? "The job description shapes every question in the interview."
                           : step === 3

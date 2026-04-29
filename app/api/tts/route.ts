@@ -90,8 +90,8 @@ export async function POST(request: Request) {
     headers: {
       "Content-Type": "audio/mpeg",
       "Cache-Control": "no-store",
-      "x-roleready-tts-provider": "google-cloud",
-      "x-roleready-voice-name": voiceName,
+      "x-connectrole-tts-provider": "google-cloud",
+      "x-connectrole-voice-name": voiceName,
     },
   });
 }
