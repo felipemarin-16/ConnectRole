@@ -61,4 +61,6 @@ RoleReady is a premium, high-fidelity mock interview platform designed to help c
 
 ## 📝 License
 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
 Built with ❤️ by [Felipe Marin](https://github.com/felipemarin-16).
