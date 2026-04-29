@@ -61,11 +61,6 @@ RoleReady is a premium, high-fidelity mock interview platform designed to help c
 - **AI/LLM**: [OpenAI](https://openai.com/) or [Groq](https://groq.com/) (used strictly to generate smart interview questions and feedback)
 - **PDF Parsing**: Client-side text extraction
 
-## 🚀 Deployment
-
-If you are deploying this project on platforms like **Vercel**, your `.env.local` file will *not* be uploaded (for security). 
-You must add your API keys (e.g., `OPENAI_API_KEY` and `GOOGLE_TTS_API_KEY`) directly into the **Environment Variables** section of your Vercel project settings for the app to work in production.
-
 ## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
