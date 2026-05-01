@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Manrope } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
 
 import "@/app/globals.css";
 
@@ -27,6 +28,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${manrope.variable} ${fraunces.variable} font-sans text-ink`}>
         {children}
+        <Analytics />
       </body>
     </html>
   );
