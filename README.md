@@ -24,7 +24,8 @@ ConnectRole is a premium, high-fidelity mock interview platform designed to help
 
 - Node.js 18.x or later
 - An API Key for one of the supported LLM providers (OpenAI or Groq)
-- A Google Cloud TTS API Key (optional, for high-quality voice)
+- A modern browser with Web Speech support for local voice playback
+- A Google Cloud TTS API Key (optional, only if you want cloud voice instead of browser speech)
 
 ### Installation
 
@@ -56,7 +57,7 @@ ConnectRole is a premium, high-fidelity mock interview platform designed to help
 
 - **Framework**: [Next.js](https://nextjs.org/) (App Router)
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **Voice Output (TTS)**: [Google Cloud Text-to-Speech](https://cloud.google.com/text-to-speech) (for the coach's voice)
+- **Voice Output (TTS)**: Browser Web Speech API by default, with optional [Google Cloud Text-to-Speech](https://cloud.google.com/text-to-speech)
 - **Speech Recognition (STT)**: Browser Web Speech API (runs free and locally in the browser, **no Whisper API needed**)
 - **AI/LLM**: [OpenAI](https://openai.com/) or [Groq](https://groq.com/) (used strictly to generate smart interview questions and feedback)
 - **PDF Parsing**: Client-side text extraction

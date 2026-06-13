@@ -10,3 +10,5 @@ coverage/
 .env.*
 !.env.example
 .vercel
+__pycache__/
+artifacts/*preview.png

@@ -152,7 +152,7 @@ export function InterviewScreen() {
   );
   const introActive = isFirstQuestion && !openingDelivered;
   const questionVisible = !introActive || introStage === "done";
-  const ttsMode = (process.env.NEXT_PUBLIC_TTS_MODE as "auto" | "browser" | "cloud") || "cloud";
+  const ttsMode = (process.env.NEXT_PUBLIC_TTS_MODE as "auto" | "browser" | "cloud") || "browser";
   const {
     supported: ttsSupported,
     ready: ttsReady,
